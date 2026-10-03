@@ -700,11 +700,13 @@ async function sniffLesson($: EngineInterface, text: string): Promise<{ signatur
   const signature = errorSignature(text)
   if (signature === null) return null
   const seen = ((await $.store.get('errsig')) as Record<string, { n: number; turn: string }> | undefined) ?? {}
-  const entry = seen[signature] ?? { n: 0, turn: '' }
+  // Prefixed keys: an error text such as __proto__ never reaches the object's prototype.
+  const key = `sig:${signature}`
+  const entry = Object.hasOwn(seen, key) ? (seen[key] as { n: number; turn: string }) : { n: 0, turn: '' }
   if (entry.turn === S.turnId) return null
   entry.n += 1
   entry.turn = S.turnId
-  seen[signature] = entry
+  seen[key] = entry
   // Keep the store small: the 200 most recent signatures.
   const keys = Object.keys(seen)
   if (keys.length > 200) for (const k of keys.slice(0, keys.length - 200)) delete seen[k]

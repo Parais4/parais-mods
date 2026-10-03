@@ -267,3 +267,16 @@ describe('subagent minis', () => {
     expect(width).toBe(MINI_COLUMNS)
   })
 })
+
+describe('lesson sniff safety', () => {
+  test('an error text of __proto__ is counted like any other and pollutes nothing', HU, async ($, on) => {
+    stubEngine(on, { toolError: true, errorText: '__proto__' })
+    let r: unknown
+    for (let i = 1; i <= 3; i++) {
+      await $.turn.start({ text: 'próba', turnId: `P${i}` } as never)
+      r = await $.tool.call(bash(`node p${i}.js`, `p${i}`))
+    }
+    expect(contextOf(r)).toContain('tanulság-szimat')
+    expect(({} as Record<string, unknown>).n).toBeUndefined()
+  })
+})
