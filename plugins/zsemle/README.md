@@ -28,23 +28,25 @@ The same figures as the terminal draws them (quadrant-block characters, two colo
 
 ![All figures in the terminal](docs/figures-dark.png)
 
-| id | figure | its own trick |
+| name | figure | its own trick |
 | --- | --- | --- |
-| `zsemle` | golden retriever puppy (default) | wags its tail, barks when a long turn ends |
-| `cirmi` | grey tabby cat | hisses at a blocked write |
-| `trutyi` | jelly slime | wobbles when happy |
-| `kapocs` | paperclip with a face | hops |
-| `pingvin` | penguin | waddles when your tests pass |
-| `teknos` | turtle | pulls its head in during turns longer than 3 minutes |
-| `horcsog` | hamster | runs in its wheel while the model works |
-| `bagoly` | owl | after 22:00 it tells you to close the day |
-| `rubik` | Rubik's cube with eyes | twists |
-| `gumikacsa` | rubber duck | listens to your bug explanation |
-| `bogre` | coffee mug | steams while the model works, empties as the limit runs low |
-| `kaktusz` | potted cactus | blooms on green tests, wilts on errors |
-| `sarkany` | little dragon | breathes fire after a deploy |
-| `szellem` | ghost | fades when you are idle |
-| `robot` | robot | its antenna blinks while the model works |
+| `dog` | golden retriever puppy (default) | wags its tail, barks when a long turn ends |
+| `cat` | grey tabby cat | meows, hisses at a blocked write |
+| `slime` | jelly slime | wobbles when happy |
+| `paperclip` | paperclip with a face | hops |
+| `penguin` | penguin | waddles when your tests pass |
+| `turtle` | turtle | pulls its head in during turns longer than 3 minutes |
+| `hamster` | hamster | runs in its wheel while the model works |
+| `owl` | owl | after 22:00 it tells you to close the day |
+| `cube` | Rubik's cube with eyes | clicks |
+| `duck` | rubber duck | quacks, listens to your bug explanation |
+| `mug` | coffee mug | steams while the model works, empties as the limit runs low |
+| `cactus` | potted cactus | blooms on green tests, wilts on errors |
+| `dragon` | little dragon | roars, breathes fire after a deploy |
+| `ghost` | ghost | fades when you are idle |
+| `robot` | robot | beeps, its antenna blinks while the model works |
+
+Every figure has its own sound (barks, meows, quacks, hoots, a roar, beeps...), played when a long turn ends (`/zsemle bark` to test it, `/zsemle mute` to silence it).
 
 Every figure has 9 poses (awake, blink, speaking, yawn, sad, happy, alert, angry, tired):
 
@@ -54,7 +56,7 @@ and some have special frames (work animation, long turn, fatigue levels):
 
 ![Special frames](docs/extras.png)
 
-Switch figures with `/zsemle skin` (a pane with previews: click one), `/zsemle skin cat` (names and aliases work in English and Hungarian), the bubble's `skin` button, or the `zsemle.skin` row in `/config`.
+Switch figures with `/zsemle skin` (a pane with previews: click one), `/zsemle skin penguin`, the bubble's `skin` button, or the `zsemle.skin` row in `/config` (there the figures go by their short ids: `zsemle` is the dog, `pingvin` the penguin and so on; `/zsemle skin` lists both).
 
 ## What it watches
 
@@ -74,7 +76,7 @@ Also: a sound when a turn longer than 3 minutes finishes, a content guard (curly
 
 ## Optional features
 
-All on by default; switch any of them off in `/config` or with `/zsemle feature <name> off`.
+All on by default; switch any of them off in `/config` or with `/zsemle feature <name> off`, for example `/zsemle feature commitGuard off`. `/zsemle features` lists them with their state.
 
 | feature | what it does |
 | --- | --- |
@@ -115,12 +117,12 @@ Run it from a local folder instead (for hacking on it): clone this repo and star
 | `/zsemle` | | status and help |
 | `/zsemle limit` | | every window, the pace, today's budget, the context and the cost |
 | `/zsemle skin` | | the figure picker pane |
-| `/zsemle skin <name>` | `/zsemle skin <név>` | wear a figure (`next` steps through them) |
+| `/zsemle skin <name>` | `/zsemle skin <név>` | wear a figure, e.g. `penguin` (`next` steps through them) |
 | `/zsemle ask <q>` | `/zsemle kerdes <k>` | ask Zsemle (small model) |
 | `/zsemle week` | `/zsemle heti` | weekly activity chart |
 | `/zsemle summary` | `/zsemle napzaro` | a summary of this session (small model) |
 | `/zsemle features` | `/zsemle kapcsolok` | the optional features and their state |
-| `/zsemle feature <name> off/on` | `/zsemle kapcsolo <név> ki/be` | switch one |
+| `/zsemle feature <name> off/on` | `/zsemle kapcsolo <név> ki/be` | switch one, e.g. `commitGuard` |
 | `/zsemle stats` | `/zsemle stat` | today's stats |
 | `/zsemle ok` | | "got it": hides the bubble until there is news (or double-click the head) |
 | `/zsemle mute` / `sound` | `nemit` / `hang` | sound off/on |
@@ -138,7 +140,7 @@ In `/config`, or in `~/.claude/settings.json` under `pluginConfigs.zsemle.option
 | option | default | what |
 | --- | --- | --- |
 | `language` | `en` | `en` or `hu` |
-| `skin` | `zsemle` | the default figure |
+| `skin` | `zsemle` | the default figure, by its short id (`zsemle` dog, `cirmi` cat, `trutyi` slime, `kapocs` paperclip, `pingvin` penguin, `teknos` turtle, `horcsog` hamster, `bagoly` owl, `rubik` cube, `gumikacsa` duck, `bogre` mug, `kaktusz` cactus, `sarkany` dragon, `szellem` ghost, `robot` robot) |
 | `guardDashes` | `false` | the content guard also blocks em and en dashes |
 | `reflectQueue` | empty | a log file whose non-empty lines are unprocessed `/reflect` markers (empty: no reminder) |
 | `projectTable` | empty | a markdown file with a project table (`\| [[link\|Name]] \| status \| ... \|`); the morning brief lists rows marked `deploy-var` or `blokkolt` |

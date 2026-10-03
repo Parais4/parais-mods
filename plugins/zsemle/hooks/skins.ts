@@ -225,6 +225,30 @@ export function skinOf(id: SkinId): Skin {
   return SKINS[id] ?? ZSEMLE
 }
 
+/** Each figure's English word: what an English user types and sees (`/zsemle skin penguin`). */
+const EN_WORDS: Record<string, string> = {
+  zsemle: 'dog',
+  cirmi: 'cat',
+  trutyi: 'slime',
+  kapocs: 'paperclip',
+  pingvin: 'penguin',
+  teknos: 'turtle',
+  horcsog: 'hamster',
+  bagoly: 'owl',
+  rubik: 'cube',
+  gumikacsa: 'duck',
+  bogre: 'mug',
+  kaktusz: 'cactus',
+  sarkany: 'dragon',
+  szellem: 'ghost',
+  robot: 'robot',
+}
+
+/** The word a figure goes by in the current language: its id in Hungarian, its English word in English. */
+export function skinWord(id: SkinId): string {
+  return lang() === 'en' ? (EN_WORDS[id] ?? id) : id
+}
+
 /** The skin's voice in the current language. */
 export function voiceOf(id: SkinId): Voice {
   return lang() === 'en' ? skinOf(id).voiceEn : skinOf(id).voice
@@ -243,7 +267,7 @@ export function findSkin(word: string): SkinId | null {
   if (w === '') return null
   for (const id of SKIN_IDS) {
     const skin = skinOf(id)
-    if (fold(id) === w || skin.aliases.some(a => fold(a) === w) || fold(skin.voice.name) === w) return id
+    if (fold(id) === w || fold(EN_WORDS[id] ?? '') === w || skin.aliases.some(a => fold(a) === w) || fold(skin.voice.name) === w) return id
     if (fold(skin.labelEn.split(',')[0] ?? '') === w) return id
   }
   return null

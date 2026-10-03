@@ -98,7 +98,7 @@ import {
   weekChart,
 } from './features'
 import type { Budget, Feature } from './features'
-import { asSkin, DEFAULT_SKIN, findSkin, labelOf, nextSkin, SKIN_IDS, skinOf, voiceOf } from './skins'
+import { asSkin, DEFAULT_SKIN, findSkin, labelOf, nextSkin, SKIN_IDS, skinOf, skinWord, voiceOf } from './skins'
 import type { SkinId, Voice } from './skins'
 
 const limits = atom({ plugin: 'zsemle', key: 'limits' } as const, [] as Limit[])
@@ -120,7 +120,7 @@ function help(): string {
       '/zsemle ok            got it (hides the bubble)',
       '/zsemle limit         every limit, the pace, the context and the cost right now',
       '/zsemle skin          figure picker pane (also in /config: zsemle.skin)',
-      `/zsemle skin <name>   figure: ${SKIN_IDS.join(', ')}`,
+      `/zsemle skin <name>   figure: ${SKIN_IDS.map(skinWord).join(', ')}`,
       '/zsemle stats         stats for the day',
       '/zsemle mute          sound off (the button too)',
       '/zsemle sound         sound back on',
@@ -746,7 +746,7 @@ async function summarize($: EngineInterface): Promise<string> {
 /** The commands of the optional features; null when the argument is none of them. */
 async function featureCommands($: EngineInterface, arg: string, raw: string): Promise<string | null> {
   if (['kapcsolok', 'kapcsolók', 'features', 'funkciok', 'funkciók'].includes(arg)) {
-    const list = FEATURES.map(f => `  ${S.features[f] ? tr('be', 'on ') : tr('ki', 'off')}  ${featureWord(f).padEnd(14)} ${featureLabel(f)}`).join('\n')
+    const list = FEATURES.map(f => `  ${S.features[f] ? tr('be', 'on ') : tr('ki', 'off')}  ${tr(featureWord(f), f).padEnd(14)} ${featureLabel(f)}`).join('\n')
     return `${tr('Funkciók (/zsemle kapcsolo <név> ki|be):', 'Features (/zsemle feature <name> off|on):')}\n${list}`
   }
   const sw = /^(?:kapcsolo|kapcsoló|feature|funkcio|funkció)\s+(\S+)\s+(ki|be|off|on)$/.exec(arg)
@@ -1153,7 +1153,7 @@ export const register: Register = (on, options) => {
     const now = await $.clock.now()
     if (arg === 'skin' || arg === 'skinek' || arg === 'skins' || arg === 'figura') {
       const opened = await $.ui.open({ id: SKIN_PANE, title: tr('Zsemle figurák', 'Zsemle figures') })
-      const list = SKIN_IDS.map(id => `  ${id === S.skin ? '*' : ' '} ${id.padEnd(8)} ${labelOf(id)}`).join('\n')
+      const list = SKIN_IDS.map(id => `  ${id === S.skin ? '*' : ' '} ${skinWord(id).padEnd(10)} ${labelOf(id)}`).join('\n')
       const where = opened.isPlaced === false ? '' : tr(' A panelen kattintással is választhatsz.', ' You can also click one in the pane.')
       return { text: `${tr('Figurák (/zsemle skin <név>):', 'Figures (/zsemle skin <name>):')}\n${list}\n${where}`.trimEnd() }
     }
@@ -1161,7 +1161,7 @@ export const register: Register = (on, options) => {
       const word = arg.slice(arg.indexOf(' ') + 1)
       const id = ['kovetkezo', 'következő', 'next'].includes(word) ? nextSkin(S.skin) : findSkin(word)
       if (id === null) {
-        return { text: tr(`Nincs ilyen figura: "${word}". Választható: ${SKIN_IDS.join(', ')}`, `No such figure: "${word}". Pick one of: ${SKIN_IDS.join(', ')}`) }
+        return { text: tr(`Nincs ilyen figura: "${word}". Választható: ${SKIN_IDS.join(', ')}`, `No such figure: "${word}". Pick one of: ${SKIN_IDS.map(skinWord).join(', ')}`) }
       }
       await chooseSkin($, id)
       return { text: tr(`${voiceOf(id).name} lett a társad: ${labelOf(id)}.`, `${voiceOf(id).name} is your companion now: ${labelOf(id)}.`) }

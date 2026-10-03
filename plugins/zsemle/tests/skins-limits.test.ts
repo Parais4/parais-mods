@@ -318,3 +318,25 @@ describe('sounds', () => {
     for (const id of SKIN_IDS) expect(skinOf(id).voiceEn.sound).toBe(skinOf(id).voice.sound)
   })
 })
+
+describe('english words', () => {
+  const EN = { options: { language: 'en' } } as const
+
+  test('English users see and type English figure and feature names', EN, async ($, on) => {
+    stubEngine(on)
+    const help = await $.command.run({ command: 'zsemle', args: '' } as never)
+    expect(textOf(help)).toContain('figure: dog, cat, slime, paperclip, penguin, turtle, hamster, owl')
+    const list = await $.command.run({ command: 'zsemle', args: 'skin' } as never)
+    expect(textOf(list)).toContain('penguin')
+    expect(textOf(list)).not.toContain(' pingvin ')
+    const worn = await $.command.run({ command: 'zsemle', args: 'skin hamster' } as never)
+    expect(textOf(worn)).toContain('Pufi is your companion now')
+    const features = await $.command.run({ command: 'zsemle', args: 'features' } as never)
+    expect(textOf(features)).toContain('commitGuard')
+    expect(textOf(features)).not.toContain('commitor')
+    const off = await $.command.run({ command: 'zsemle', args: 'feature commitGuard off' } as never)
+    expect(textOf(off)).toContain(': off.')
+    const bad = await $.command.run({ command: 'zsemle', args: 'skin unicorn' } as never)
+    expect(textOf(bad)).toContain('Pick one of: dog, cat')
+  })
+})
