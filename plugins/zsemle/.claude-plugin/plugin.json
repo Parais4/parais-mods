@@ -86,5 +86,17 @@
   "documentationUrl": "https://github.com/Parais4/parais-mods/blob/main/plugins/zsemle/README.md",
   "supportUrl": "https://github.com/Parais4/parais-mods/issues",
   "privacyPolicyUrl": "https://github.com/Parais4/parais-mods/blob/main/plugins/zsemle/PRIVACY.md",
-  "termsOfServiceUrl": "https://github.com/Parais4/parais-mods/blob/main/plugins/zsemle/TERMS.md"
+  "termsOfServiceUrl": "https://github.com/Parais4/parais-mods/blob/main/plugins/zsemle/TERMS.md",
+  "keywords": [
+    "usage-limits",
+    "rate-limit",
+    "companion",
+    "pixel-art",
+    "mod",
+    "status-line",
+    "subagents",
+    "weekly-budget",
+    "content-guard",
+    "productivity"
+  ]
 }
