@@ -1319,9 +1319,19 @@ export const register: Register = (on, options) => {
       const isOn = id === S.skin
       let figure = null
       if (isTerminal) {
-        const { Client } = $.ui.resolve(e)
+        // Drawn as plain rows of colored text: the button below does the picking.
         figure = (
-          <Client module="./dog.tsx" key={`pick-${id}`} props={{ lines: spriteRuns('awake', id), pick: id }} width={SPRITE_COLUMNS} height={SPRITE_ROWS} />
+          <Box key={`pick-${id}`} flexDirection="column">
+            {spriteRuns('awake', id).map((runs, y) => (
+              <Box key={`pick-${id}-${y}`} flexDirection="row">
+                {runs.map((run, i) => (
+                  <Text key={`pick-${id}-${y}-${i}`} color={run.fg} backgroundColor={run.bg}>
+                    {run.text}
+                  </Text>
+                ))}
+              </Box>
+            ))}
+          </Box>
         )
       } else if (e.surface === 'desktop') {
         const { Svg } = $.ui.resolve(e)
@@ -1423,7 +1433,15 @@ export const register: Register = (on, options) => {
       const crowd = minis(now)
       const helpers = crowd.shown.map(m => (
         <Box key={`mini-${m.id}`} flexDirection="column" marginLeft={m.left} marginBottom={m.lift} width={MINI_COLUMNS + 3}>
-          <Client module="./dog.tsx" key={`mini-c-${m.id}`} props={{ lines: miniRuns(m.frame, S.skin) }} width={MINI_COLUMNS} height={MINI_ROWS} />
+          {miniRuns(m.frame, S.skin).map((runs, y) => (
+            <Box key={`mini-${m.id}-${y}`} flexDirection="row">
+              {runs.map((run, i) => (
+                <Text key={`mini-${m.id}-${y}-${i}`} color={run.fg} backgroundColor={run.bg}>
+                  {run.text}
+                </Text>
+              ))}
+            </Box>
+          ))}
         </Box>
       ))
 
