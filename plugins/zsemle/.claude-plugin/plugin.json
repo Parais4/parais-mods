@@ -80,5 +80,11 @@
       "default": true
     }
   },
-  "icon": "./.claude-plugin/icon.png"
+  "icon": "./.claude-plugin/icon.png",
+  "homepage": "https://github.com/Parais4/parais-mods/tree/main/plugins/zsemle",
+  "repository": "https://github.com/Parais4/parais-mods",
+  "documentationUrl": "https://github.com/Parais4/parais-mods/blob/main/plugins/zsemle/README.md",
+  "supportUrl": "https://github.com/Parais4/parais-mods/issues",
+  "privacyPolicyUrl": "https://github.com/Parais4/parais-mods/blob/main/plugins/zsemle/PRIVACY.md",
+  "termsOfServiceUrl": "https://github.com/Parais4/parais-mods/blob/main/plugins/zsemle/TERMS.md"
 }

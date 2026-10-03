@@ -207,7 +207,7 @@ Everything Zsemle does, for reviewers and the curious. It is a Claude Code mod: 
 
 ## Credits
 
-Made by Parais Gergely. Zsemle is a fan-made mod, not affiliated with or endorsed by Anthropic. The bark sound is CC0 (see `sounds/CREDITS.md`), the chime is generated. Code under the MIT license, see `LICENSE`.
+Made by Parais Gergely. Zsemle is a fan-made mod, not affiliated with or endorsed by Anthropic. The bark sound is CC0 (see `sounds/CREDITS.md`), the chime is generated. Code under the MIT license, see `LICENSE`. Privacy policy: [PRIVACY.md](PRIVACY.md). Terms of use: [TERMS.md](TERMS.md). Support: [issues](https://github.com/Parais4/parais-mods/issues).
 
 ---
 
