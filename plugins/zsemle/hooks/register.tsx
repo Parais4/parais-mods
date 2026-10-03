@@ -25,12 +25,14 @@ import {
   isTestCommand,
   judge,
   localTime,
+  shortModel,
   modelSwitchNote,
   paceNote,
   resetNote,
   resets,
   REST_AFTER_MS,
   BREAK_GAP_MS,
+  BARK_AFTER_MS,
   shouldBark,
   SPRITE_COLUMNS,
   SPRITE_ROWS,
@@ -40,6 +42,10 @@ import {
   writeParts,
   spriteRuns,
   spriteSvg,
+  miniRuns,
+  miniSvg,
+  MINI_COLUMNS,
+  MINI_ROWS,
   commitBucket,
   commitNote,
   COMMIT_SNIFF_AT,
@@ -60,8 +66,39 @@ import {
   SAVE_RESET_BELOW,
   SCAN_EVERY_MS,
 } from './logic'
-import type { DayStats, PortClash, Pose, Verdict } from './logic'
-import { asSkin, DEFAULT_SKIN, findSkin, labelOf, nextSkin, SKIN_IDS, voiceOf } from './skins'
+import type { DayStats, Frame, PortClash, Pose, Verdict } from './logic'
+import {
+  askSystem,
+  briefNote,
+  budgetLine,
+  budgetOverNote,
+  commitGuardNote,
+  CONTEXT_SAVER_AT,
+  contextSaverNote,
+  dailyBudget,
+  daySummaryNote,
+  errorSignature,
+  fatigueLevel,
+  featureLabel,
+  FEATURES,
+  featureWord,
+  findFeature,
+  isBigModel,
+  isCommitCommand,
+  isSimpleTask,
+  LESSON_AFTER,
+  lessonBubble,
+  lessonNote,
+  LOOP_EDITS,
+  loopBubble,
+  loopNote,
+  modelAdviceNote,
+  parseProjectTable,
+  summaryOf,
+  weekChart,
+} from './features'
+import type { Budget, Feature } from './features'
+import { asSkin, DEFAULT_SKIN, findSkin, labelOf, nextSkin, SKIN_IDS, skinOf, voiceOf } from './skins'
 import type { SkinId, Voice } from './skins'
 
 const limits = atom({ plugin: 'zsemle', key: 'limits' } as const, [] as Limit[])
@@ -74,6 +111,8 @@ const HEART = '#e87887'
 const SEC = 1000
 const MIN = 60 * SEC
 const SKIN_PANE = 'zsemle-skins'
+const WEEK_PANE = 'zsemle-week'
+const DAY = 86400000
 
 function help(): string {
   if (lang() === 'en') {
@@ -92,6 +131,11 @@ function help(): string {
       '/zsemle wake          let work go on past 95% in this session',
       '/zsemle guard off|on  content guard (dashes, curly quotes, emoji, secrets) off/on',
       '/zsemle bark          test the sound',
+      '/zsemle ask <q>       ask Zsemle (limits, stats, the session) with a small model',
+      '/zsemle week          weekly activity chart',
+      '/zsemle summary       a day summary of this session',
+      '/zsemle features      the optional features and their switches',
+      '/zsemle feature <name> off|on   switch one',
     ].join('\n')
   }
   return [
@@ -109,6 +153,11 @@ function help(): string {
     '/zsemle ebreszt      95% felett is továbbenged ebben a munkamenetben',
     '/zsemle or ki|be     tartalomőr (gondolatjel, idézőjel, emoji, titok) ki/be',
     '/zsemle ugass        próba-hang',
+    '/zsemle kerdes <k>   kérdezd Zsemlét (limit, statisztika, munkamenet) egy kis modellel',
+    '/zsemle heti         heti aktivitás-grafikon',
+    '/zsemle napzaro      napzáró összefoglaló erről a munkamenetről',
+    '/zsemle kapcsolok    a választható funkciók és kapcsolóik',
+    '/zsemle kapcsolo <név> ki|be   egy funkció ki/be',
   ].join('\n')
 }
 
@@ -155,6 +204,21 @@ const S = {
   skin: DEFAULT_SKIN as SkinId,
   reflectQueue: '',
   guardDashes: false,
+  projectTable: '',
+  features: Object.fromEntries(FEATURES.map(f => [f, true])) as Record<Feature, boolean>,
+  turnStartedAt: 0,
+  turnId: '',
+  turnEdits: new Map<string, number>(),
+  lastEditAt: 0,
+  lastTestAt: 0,
+  commitWarnCmd: '',
+  commitWarnAt: 0,
+  isContextSaverSent: false,
+  adviceAt: 0,
+  isSummaryPending: false,
+  lastModelSeen: '',
+  // Running subagents by id, with when each started: one mini figure each.
+  agents: new Map<string, number>(),
   startedAt: new Map<string, number>(),
   isWorking: false,
   lastActivity: 0,
@@ -207,9 +271,14 @@ const voice = (): Voice => voiceOf(S.skin)
 type Tone = 'red' | 'yellow' | 'coat' | 'heart' | 'dim' | 'plain'
 // `key` names the message: once acknowledged it stays hidden until a message
 // with another key comes. `quiet` messages never open the bubble.
-type View = { pose: Pose; message: string; tone: Tone; key: string; quiet?: true }
+type View = { pose: Frame; message: string; tone: Tone; key: string; quiet?: true }
 
-const alternate = (now: number, a: Pose, b: Pose, ms = 250): Pose => (Math.floor(now / ms) % 2 === 0 ? a : b)
+const alternate = (now: number, a: Frame, b: Frame, ms = 250): Frame => (Math.floor(now / ms) % 2 === 0 ? a : b)
+
+const isOn = (f: Feature) => S.features[f]
+
+/** No work for 20 minutes. */
+const isIdle = (now: number) => !S.isWorking && S.lastActivity > 0 && now - S.lastActivity >= IDLE_AFTER_MS
 
 /** Shows `text` in the bubble for `ms`, with a pose and a tone, and as a toast. */
 function alert($: EngineInterface, now: number, text: string, opts: { tone?: Tone; pose?: Pose; ms?: number; toast?: boolean } = {}): void {
@@ -225,13 +294,20 @@ function alert($: EngineInterface, now: number, text: string, opts: { tone?: Ton
 function view(now: number, verdict: Verdict, isStopped: boolean, all: readonly Limit[]): View {
   const v = voice()
   const tired = S.contextPct !== null && S.contextPct >= CONTEXT_TIRED_AT
-  const idle = !S.isWorking && S.lastActivity > 0 && now - S.lastActivity >= IDLE_AFTER_MS
+  const idle = isIdle(now)
+  const skin = skinOf(S.skin)
+  // Fatigue: the resting face tires as the worst window fills, and is fresh again after a reset.
+  const level = isOn('fatigueLook') ? fatigueLevel(all) : 0
+  const rest: Frame = skin.levels !== undefined && skin.levels.length === 4 ? `level${level}` : level >= 2 ? 'tired' : 'awake'
+  const work = skin.workFrames ?? []
 
-  let base: Pose = 'awake'
-  if (now < S.wagUntil || now < S.heartUntil) base = alternate(now, 'awake', 'wag')
+  let base: Frame = rest
+  if (now < S.wagUntil || now < S.heartUntil) base = alternate(now, rest, 'wag')
   else if (now < S.droopUntil) base = 'droop'
-  else if (tired && now % 20000 < 1500) base = 'yawn'
-  else if (now % 4700 < 300) base = 'blink'
+  else if (S.isWorking && skin.longTurn !== undefined && S.turnStartedAt > 0 && now - S.turnStartedAt >= BARK_AFTER_MS) base = 'long'
+  else if (S.isWorking && work.length > 0) base = `work${Math.floor(now / 300) % work.length}`
+  else if ((tired || level >= 3) && now % 20000 < 1500) base = 'yawn'
+  else if (now % 4700 < (level >= 1 ? 700 : 300)) base = 'blink'
 
   if (isStopped) return { pose: 'blink', message: `${verdict.message} ${v.snore}...`, tone: 'red', key: 'stop' }
   if (now < S.growlUntil) return { pose: 'growl', message: `${v.growl} ${S.growlText}`, tone: 'red', key: `growl:${S.growlUntil}` }
@@ -307,7 +383,7 @@ function view(now: number, verdict: Verdict, isStopped: boolean, all: readonly L
   }
   if (S.isSaveNeeded && S.contextPct !== null) {
     return {
-      pose: base === 'awake' && now % 8000 < 1500 ? 'yawn' : base,
+      pose: base === rest && now % 8000 < 1500 ? 'yawn' : base,
       message: contextSaveNote(S.contextPct, S.isSaved),
       tone: S.isSaved ? 'coat' : 'yellow',
       key: `context:${S.isSaved}`,
@@ -492,9 +568,11 @@ async function onTick($: EngineInterface): Promise<void> {
       S.isScanning = false
     })
   }
+  if (working && Math.floor(now / 1000) % 30 === 0) void eveningChecks($, now).catch(() => undefined)
   const { v, verdict } = await currentView($, now)
   pushStatus($, verdict)
-  const key = `${S.skin}|${v.pose}|${v.message}|${v.tone}|${statusText(verdict)}|${S.isMuted}|${showsBubble(v)}`
+  const minis = S.agents.size > 0 ? `${S.agents.size}:${Math.floor(now / MINI_STEP_MS)}` : ''
+  const key = `${S.skin}|${v.pose}|${v.message}|${v.tone}|${statusText(verdict)}|${S.isMuted}|${showsBubble(v)}|${minis}`
   if (key !== S.lastKey) {
     S.lastKey = key
     $.ui.invalidate('ui.render')
@@ -521,6 +599,8 @@ async function limitReport($: EngineInterface): Promise<string> {
     const f = worstForecast([l], now)
     if (f !== null) lines.push(`  ${''.padEnd(14)} ${paceNote(f, now)}`)
   }
+  const budget = await todayBudget($, now, all)
+  if (budget !== null) lines.push(`  ${budgetLine(budget)}`)
   const ctx = S.contextPct === null ? tr('nincs adat', 'no reading') : `${Math.round(S.contextPct)}%`
   lines.push(`  ${tr('kontextus:', 'context:').padEnd(15)}${ctx}`)
   if (S.costUsd > 0) {
@@ -534,10 +614,198 @@ async function limitReport($: EngineInterface): Promise<string> {
   return lines.join('\n')
 }
 
+/** Local midnight of `now`, from the local clock reading. */
+function dayStart(now: number): number {
+  const hm = localTime(now).hm
+  const [h, m] = hm.split(':').map(Number)
+  return now - ((h ?? 0) * 3600 + (m ?? 0) * 60) * 1000 - (now % 60000)
+}
+
+/** The weekly use at the day's first reading, kept per local day. */
+async function noteBudgetStart($: EngineInterface, now: number, all: readonly Limit[]): Promise<void> {
+  const week = all.find(l => l.kind === 'seven_day')
+  if (week === undefined) return
+  const key = `budget:${localTime(now).day}`
+  if ((await $.store.get(key)) === undefined) await $.store.set(key, week.percentUsed)
+}
+
+async function todayBudget($: EngineInterface, now: number, all: readonly Limit[]): Promise<Budget | null> {
+  if (!isOn('budgetPlanner')) return null
+  const week = all.find(l => l.kind === 'seven_day')
+  if (week === undefined) return null
+  const start = await $.store.get(`budget:${localTime(now).day}`)
+  return dailyBudget(week, typeof start === 'number' ? start : week.percentUsed, dayStart(now))
+}
+
+/** In the evening: the owl's good night, and a word when today went past its weekly share. */
+async function eveningChecks($: EngineInterface, now: number): Promise<void> {
+  const t = localTime(now)
+  const hour = Number(t.hm.slice(0, 2))
+  const skin = skinOf(S.skin)
+  if (skin.nightOwl === true && (hour >= 22 || hour < 4) && (await $.store.get('nightDay')) !== t.day) {
+    await $.store.set('nightDay', t.day)
+    const night = voice().night ?? tr('Késő van, ideje lezárni a napot.', 'It is late, time to close the day.')
+    alert($, now, night, { tone: 'coat', pose: 'sniff', ms: 5 * MIN })
+  }
+  if (hour >= 20 && (await $.store.get('budgetWarned')) !== t.day) {
+    const b = await todayBudget($, now, await read($, limits))
+    if (b !== null && b.usedToday > b.allowance) {
+      await $.store.set('budgetWarned', t.day)
+      alert($, now, budgetOverNote(b), { pose: 'tired', ms: 5 * MIN })
+    }
+  }
+}
+
+/** Tool calls per local hour, for the weekly chart. */
+async function bumpActivity($: EngineInterface, now: number): Promise<void> {
+  const t = localTime(now)
+  const key = `act:${t.day}`
+  const hours = ((await $.store.get(key)) as number[] | undefined) ?? Array.from({ length: 24 }, () => 0)
+  const h = Number(t.hm.slice(0, 2))
+  hours[h] = (hours[h] ?? 0) + 1
+  await $.store.set(key, hours)
+}
+
+/** The first prompt of the local day carries a short brief for the model to pass on. */
+async function morningBrief($: EngineInterface, now: number): Promise<string> {
+  if (!isOn('morningBrief')) return ''
+  const t = localTime(now)
+  if (Number(t.hm.slice(0, 2)) < 4 || (await $.store.get('briefDay')) === t.day) return ''
+  await $.store.set('briefDay', t.day)
+  const yesterday = (await $.store.get(`summary:${localTime(now - DAY).day}`)) as string | undefined
+  let projects: ReturnType<typeof parseProjectTable> = []
+  if (S.projectTable !== '') {
+    try {
+      projects = parseProjectTable(await $.fs.read(S.projectTable))
+    } catch {
+      projects = []
+    }
+  }
+  const b = await todayBudget($, now, await read($, limits))
+  return briefNote({ yesterday: yesterday ?? null, projects, budget: b === null ? null : budgetLine(b), reflect: await refreshReflect($) })
+}
+
+/** A simple task on a big model at a high limit: suggest a smaller one, at most every 20 minutes. */
+async function adviseModel($: EngineInterface, now: number, text: string, verdict: Verdict): Promise<void> {
+  if (!isOn('modelAdvice') || now - S.adviceAt < 20 * MIN || !isSimpleTask(text)) return
+  if (verdict.worst === null || verdict.worst.percentUsed < 50) return
+  const model = await $.session.model().catch(() => S.lastModelSeen)
+  if (!isBigModel(model)) return
+  S.adviceAt = now
+  alert($, now, modelAdviceNote(shortModel(model)), { pose: 'sniff', ms: 2 * MIN })
+}
+
+/** Counts a failing command's error across turns and sessions; the count when it reaches LESSON_AFTER in a new turn. */
+async function sniffLesson($: EngineInterface, text: string): Promise<{ signature: string; count: number } | null> {
+  const signature = errorSignature(text)
+  if (signature === null) return null
+  const seen = ((await $.store.get('errsig')) as Record<string, { n: number; turn: string }> | undefined) ?? {}
+  const entry = seen[signature] ?? { n: 0, turn: '' }
+  if (entry.turn === S.turnId) return null
+  entry.n += 1
+  entry.turn = S.turnId
+  seen[signature] = entry
+  // Keep the store small: the 200 most recent signatures.
+  const keys = Object.keys(seen)
+  if (keys.length > 200) for (const k of keys.slice(0, keys.length - 200)) delete seen[k]
+  await $.store.set('errsig', seen)
+  return entry.n === LESSON_AFTER ? { signature, count: entry.n } : null
+}
+
+/** The facts the companion answers from. */
+async function askFacts($: EngineInterface): Promise<string> {
+  await bumpStats($, s => s)
+  const model = await $.session.model().catch(() => S.lastModelSeen)
+  return [await limitReport($), statsText(S.statsDay, S.stats, voice().name), `model: ${model}`, `figure: ${labelOf(S.skin)}`].join('\n\n')
+}
+
+/** The day summary of this session, written by a small model from the transcript. */
+async function summarize($: EngineInterface): Promise<string> {
+  const messages = await $.session.messages()
+  const text = messages
+    .slice(-60)
+    .map(m => `${m.role}: ${m.text.slice(0, 400)}`)
+    .join('\n')
+  const r = await $.model.complete({
+    model: 'haiku',
+    system: tr(
+      'Foglald össze magyarul 3-5 pontban a munkamenetet: mi készült el, mi maradt nyitva, mi a következő lépés. Tömören, gondolatjel nélkül.',
+      'Sum up the session in English in 3-5 points: what got done, what is still open, what comes next. Briefly, no em or en dashes.',
+    ),
+    prompt: text === '' ? tr('(üres munkamenet)', '(empty session)') : text,
+    maxTokens: 500,
+    timeoutMs: 60000,
+  })
+  if (!r.isAnswered) return tr(`Nem sikerült összefoglalni (${r.reason}).`, `Could not summarize (${r.reason}).`)
+  await $.store.set(`summary:${localTime(await $.clock.now()).day}`, r.text.trim())
+  return r.text.trim()
+}
+
+/** The commands of the optional features; null when the argument is none of them. */
+async function featureCommands($: EngineInterface, arg: string, raw: string): Promise<string | null> {
+  if (['kapcsolok', 'kapcsolók', 'features', 'funkciok', 'funkciók'].includes(arg)) {
+    const list = FEATURES.map(f => `  ${S.features[f] ? tr('be', 'on ') : tr('ki', 'off')}  ${featureWord(f).padEnd(14)} ${featureLabel(f)}`).join('\n')
+    return `${tr('Funkciók (/zsemle kapcsolo <név> ki|be):', 'Features (/zsemle feature <name> off|on):')}\n${list}`
+  }
+  const sw = /^(?:kapcsolo|kapcsoló|feature|funkcio|funkció)\s+(\S+)\s+(ki|be|off|on)$/.exec(arg)
+  if (sw !== null) {
+    const f = findFeature(sw[1] ?? '')
+    if (f === null) return tr(`Nincs ilyen funkció: ${sw[1]}. Lista: /zsemle kapcsolok`, `No such feature: ${sw[1]}. List: /zsemle features`)
+    const value = sw[2] === 'be' || sw[2] === 'on'
+    S.features[f] = value
+    await $.store.set(`feature:${f}`, value)
+    $.ui.invalidate('ui.render')
+    return `${featureLabel(f)}: ${value ? tr('bekapcsolva', 'on') : tr('kikapcsolva', 'off')}.`
+  }
+  if (['heti', 'het', 'hét', 'week', 'weekly'].includes(arg)) {
+    await $.ui.open({ id: WEEK_PANE, title: tr('Zsemle: heti aktivitás', 'Zsemle: weekly activity') })
+    return tr('A heti grafikon a panelen.', 'The weekly chart is in the pane.')
+  }
+  if (['napzaro', 'napzáró', 'summary'].includes(arg)) return summarize($)
+  const ask = /^(?:kerdes|kérdés|ask)\s+([\s\S]+)$/i.exec(raw.trim())
+  if (ask !== null) {
+    const r = await $.model.complete({ model: 'haiku', system: askSystem(await askFacts($)), prompt: ask[1] ?? '', maxTokens: 400, timeoutMs: 30000 })
+    return r.isAnswered ? `${voice().name}: ${r.text.trim()}` : tr(`${voice().name} most nem tud válaszolni (${r.reason}).`, `${voice().name} cannot answer now (${r.reason}).`)
+  }
+  return null
+}
+
+const MINI_STEP_MS = 300
+const MINI_MAX = 6
+// A subagent that never reported its stop is dropped after this long.
+const AGENT_STALE_MS = 3 * 60 * MIN
+
+type Mini = { id: string; frame: Frame; left: number; lift: number }
+
+/** The mini figures to draw now: each runs, hops or sits, by its order, in its own rhythm. */
+function minis(now: number): { shown: Mini[]; more: number } {
+  for (const [id, started] of S.agents) if (now - started > AGENT_STALE_MS) S.agents.delete(id)
+  const ids = [...S.agents.keys()]
+  const step = Math.floor(now / MINI_STEP_MS)
+  const shown = ids.slice(0, MINI_MAX).map((id, i): Mini => {
+    const phase = step + i * 3
+    const kind = i % 3
+    if (kind === 0) {
+      // Runs back and forth over three cells.
+      const pos = phase % 6
+      return { id, frame: phase % 2 === 0 ? 'awake' : 'wag', left: pos < 3 ? pos : 6 - pos, lift: 0 }
+    }
+    if (kind === 1) {
+      // Hops in place.
+      return { id, frame: phase % 2 === 0 ? 'wag' : 'awake', left: 1, lift: phase % 2 }
+    }
+    // Sits and blinks now and then.
+    return { id, frame: phase % 9 === 0 ? 'blink' : 'awake', left: 1, lift: 0 }
+  })
+  return { shown, more: Math.max(0, ids.length - MINI_MAX) }
+}
+
 export const register: Register = (on, options) => {
   setLang(asLang(options.language))
   S.reflectQueue = typeof options.reflectQueue === 'string' ? options.reflectQueue.trim() : ''
   S.guardDashes = options.guardDashes === true
+  S.projectTable = typeof options.projectTable === 'string' ? options.projectTable.trim() : ''
+  for (const f of FEATURES) S.features[f] = options[f] !== false
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -552,6 +820,10 @@ export const register: Register = (on, options) => {
     S.isMuted = (await $.store.get('muted')) === true
     S.isStatusOff = (await $.store.get('statusOff')) === true
     S.skin = await loadSkin($, options)
+    for (const f of FEATURES) {
+      const stored = await $.store.get(`feature:${f}`)
+      if (typeof stored === 'boolean') S.features[f] = stored
+    }
     if (lang() === 'en') void measureOffset($)
     try {
       const usage = await $.session.usage()
@@ -582,6 +854,7 @@ export const register: Register = (on, options) => {
         S.isSaveNoteSent = false
         S.isSaved = false
         S.isContextCriticalSent = false
+        S.isContextSaverSent = false
       }
       if (S.contextPct >= CONTEXT_CRITICAL_AT && !S.isContextCriticalSent) {
         S.isContextCriticalSent = true
@@ -593,6 +866,7 @@ export const register: Register = (on, options) => {
       const wasStopped = judge(before, now).level === 'stop'
       const fresh = toLimits(e.rateLimits)
       await update($, limits, () => fresh)
+      await noteBudgetStart($, now, fresh)
       const verdict = judge(fresh, now)
 
       const back = resets(before, fresh)
@@ -635,6 +909,19 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  // A subagent started or finished: one more or one fewer mini figure.
+  on('classic.SubagentStart', async ($, e, next) => {
+    S.agents.set(e.agent_id, await $.clock.now())
+    $.ui.invalidate('ui.render')
+    return next(e)
+  })
+
+  on('classic.SubagentStop', async ($, e, next) => {
+    S.agents.delete(e.agent_id)
+    $.ui.invalidate('ui.render')
+    return next(e)
+  })
+
   // The engine changed the model by itself (fallback after an overload or a limit).
   on('classic.PostModelSwitch', async ($, e, next) => {
     if (e.source === 'auto' && e.from_model !== e.to_model) {
@@ -667,6 +954,18 @@ export const register: Register = (on, options) => {
     }
     activity(now)
     await bumpStats($, s => ({ ...s, tools: s.tools + 1 }))
+    await bumpActivity($, now)
+
+    const bashCmd = e.tool === 'Bash' ? String((e as unknown as { command?: unknown }).command ?? '').trim() : ''
+    if (isOn('commitGuard') && bashCmd !== '' && isCommitCommand(bashCmd) && S.lastEditAt > S.lastTestAt) {
+      const isRepeat = S.commitWarnCmd === bashCmd && now - S.commitWarnAt < 2 * MIN
+      if (!isRepeat) {
+        S.commitWarnCmd = bashCmd
+        S.commitWarnAt = now
+        alert($, now, tr('Commit előtt: a módosítás óta nem futott teszt.', 'Before the commit: no test ran since the last edit.'), { pose: 'sniff', ms: MIN, toast: false })
+        return { deny: commitGuardNote() }
+      }
+    }
 
     const parts = writeParts(e.tool, e as unknown as Record<string, unknown>)
     if (parts !== null && !(await read($, isGuardOff))) {
@@ -690,6 +989,15 @@ export const register: Register = (on, options) => {
       S.isSaved = true
       $.ui.invalidate('ui.render')
     }
+    if (parts !== null && ran.deny === undefined && ran.isError !== true) {
+      S.lastEditAt = await $.clock.now()
+      const edits = (S.turnEdits.get(parts.path) ?? 0) + 1
+      S.turnEdits.set(parts.path, edits)
+      if (isOn('loopWatch') && edits === LOOP_EDITS) {
+        alert($, S.lastEditAt, loopBubble(parts.path, edits), { pose: 'droop', ms: MIN, toast: false })
+        return { ...ran, context: [...(ran.context ?? []), loopNote(parts.path, edits)] }
+      }
+    }
     if (e.tool !== 'Bash' || ran.deny !== undefined) return ran
 
     const cmd = String((e as unknown as { command?: unknown }).command ?? '').trim()
@@ -698,16 +1006,23 @@ export const register: Register = (on, options) => {
       S.droopUntil = after + 20 * SEC
       S.failCount = cmd === S.lastFail ? S.failCount + 1 : 1
       S.lastFail = cmd
+      const notes: string[] = []
+      const lesson = isOn('lessonSniff') ? await sniffLesson($, String(ran.text ?? '')) : null
+      if (lesson !== null) {
+        notes.push(lessonNote(lesson.signature, lesson.count))
+        alert($, after, lessonBubble(lesson.count), { pose: 'sniff', ms: 2 * MIN, toast: false })
+      }
       if (S.failCount >= FAIL_STREAK) {
         S.chaseUntil = after + MIN
         $.ui.invalidate('ui.render')
-        return { ...ran, context: [...(ran.context ?? []), chaseNote()] }
+        notes.push(chaseNote())
       }
-      return ran
+      return notes.length > 0 ? { ...ran, context: [...(ran.context ?? []), ...notes] } : ran
     }
 
     if (cmd === S.lastFail) S.failCount = 0
     if (isTestCommand(cmd)) {
+      S.lastTestAt = after
       S.wagUntil = after + 4 * SEC
       await bumpStats($, s => ({ ...s, tests: s.tests + 1 }))
     }
@@ -744,6 +1059,19 @@ export const register: Register = (on, options) => {
     }
 
     const notes: string[] = []
+    if (!isCommand) {
+      const brief = await morningBrief($, now)
+      if (brief !== '') notes.push(brief)
+      await adviseModel($, now, e.text, verdict)
+      if (isOn('contextSaver') && S.contextPct !== null && S.contextPct >= CONTEXT_SAVER_AT && !S.isContextSaverSent) {
+        S.isContextSaverSent = true
+        notes.push(contextSaverNote())
+      }
+      if (isOn('daySummary') && isClosingPrompt(e.text)) {
+        S.isSummaryPending = true
+        notes.push(daySummaryNote())
+      }
+    }
     if (S.isSaveNeeded && !S.isSaved && !S.isSaveNoteSent) {
       S.isSaveNoteSent = true
       notes.push(contextSavePromptNote())
@@ -762,6 +1090,9 @@ export const register: Register = (on, options) => {
     const now = await $.clock.now()
     S.startedAt.set(e.turnId, now)
     S.isWorking = true
+    S.turnStartedAt = now
+    S.turnId = e.turnId
+    S.turnEdits.clear()
     activity(now)
 
     return next(e)
@@ -774,6 +1105,12 @@ export const register: Register = (on, options) => {
     activity(now)
     const start = S.startedAt.get(e.turnId)
     S.startedAt.delete(e.turnId)
+    S.turnStartedAt = 0
+    if (S.isSummaryPending && e.reason === 'answer' && e.answer.trim() !== '') {
+      S.isSummaryPending = false
+      await $.store.set(`summary:${localTime(now).day}`, summaryOf(e.answer))
+    }
+    if (e.usage !== undefined) S.lastModelSeen = e.usage.model
     // StopFailure names an API error; this covers a turn that died without one.
     if (e.reason === 'error' && now >= S.alertUntil) {
       alert(
@@ -827,6 +1164,8 @@ export const register: Register = (on, options) => {
       await chooseSkin($, id)
       return { text: tr(`${voiceOf(id).name} lett a társad: ${labelOf(id)}.`, `${voiceOf(id).name} is your companion now: ${labelOf(id)}.`) }
     }
+    const special = await featureCommands($, arg, e.args.trim())
+    if (special !== null) return { text: special }
     switch (COMMANDS[arg]) {
       case 'limit':
         return { text: await limitReport($) }
@@ -906,6 +1245,7 @@ export const register: Register = (on, options) => {
   })
 
   const DESKTOP_FIGURE_PX = 96
+  const DESKTOP_MINI_PX = 40
   const PICKER_FIGURE_PX = 72
 
   // The picker: every figure side by side (wrapping when narrow), a click or
@@ -952,6 +1292,28 @@ export const register: Register = (on, options) => {
     )
   })
 
+  on('ui.render', { component: 'Pane', requestId: WEEK_PANE }, async ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    const now = await $.clock.now()
+    const days: { day: string; hours: number[] }[] = []
+    for (let i = 6; i >= 0; i--) {
+      const day = localTime(now - i * DAY).day
+      const saved = (await $.store.get(`act:${day}`)) as number[] | undefined
+      days.push({ day, hours: Array.from({ length: 24 }, (_, h) => saved?.[h] ?? 0) })
+    }
+    return (
+      <Box flexDirection="column">
+        {weekChart(days)
+          .split('\n')
+          .map((line, i) => (
+            <Text key={`w${i}`} wrap="truncate-end">
+              {line === '' ? ' ' : line}
+            </Text>
+          ))}
+      </Box>
+    )
+  })
+
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey || (await read($, isHidden))) {
       return next(e)
@@ -964,6 +1326,7 @@ export const register: Register = (on, options) => {
     const color =
       v.tone === 'red' ? 'red' : v.tone === 'yellow' ? 'yellow' : v.tone === 'coat' ? COAT : v.tone === 'heart' ? HEART : undefined
     const bubbleWidth = Math.max(24, Math.min(38, e.props.bodyColumns - SPRITE_COLUMNS - 3))
+    const faded = isIdle(now) && skinOf(S.skin).fadesWhenIdle === true
 
     const { Box, Text, Button } = $.ui.resolve(e)
 
@@ -996,11 +1359,22 @@ export const register: Register = (on, options) => {
     if (e.surface === 'terminal') {
       const { Client } = $.ui.resolve(e)
 
+      const crowd = minis(now)
+      const helpers = crowd.shown.map(m => (
+        <Box key={`mini-${m.id}`} flexDirection="column" marginLeft={m.left} marginBottom={m.lift} width={MINI_COLUMNS + 3}>
+          <Client key={`mini-c-${m.id}`} module="./dog.tsx" props={{ lines: miniRuns(m.frame, S.skin) }} width={MINI_COLUMNS} height={MINI_ROWS} />
+        </Box>
+      ))
+
       return (
         <Box flexDirection="row" justifyContent="flex-end" alignItems="flex-start">
           {bubble}
           {pointer}
-          <Client key="zsemle-dog" module="./dog.tsx" props={{ lines: spriteRuns(v.pose, S.skin) }} width={SPRITE_COLUMNS} height={SPRITE_ROWS} />
+          <Box key="minis" flexDirection="row" alignItems="flex-end" height={SPRITE_ROWS}>
+            {helpers}
+            {crowd.more > 0 && <Text dimColor>+{crowd.more}</Text>}
+          </Box>
+          <Client key="zsemle-dog" module="./dog.tsx" props={{ lines: spriteRuns(v.pose, S.skin, faded) }} width={SPRITE_COLUMNS} height={SPRITE_ROWS} />
         </Box>
       )
     }
@@ -1010,11 +1384,22 @@ export const register: Register = (on, options) => {
     if (e.surface === 'desktop') {
       const { Svg } = $.ui.resolve(e)
 
+      const crowd = minis(now)
+      const helpers = crowd.shown.map(m => (
+        <Box key={`mini-${m.id}`} flexDirection="column" marginLeft={m.left} marginBottom={m.lift}>
+          <Svg key={`mini-s-${m.id}`} source={miniSvg(m.frame, S.skin)} alt={tr('futó ügynök', 'running agent')} width={DESKTOP_MINI_PX} height={DESKTOP_MINI_PX} />
+        </Box>
+      ))
+
       return (
         <Box flexDirection="row" justifyContent="flex-end" alignItems="flex-start">
           {bubble}
           {pointer}
-          <Svg key="zsemle-dog" source={spriteSvg(v.pose, S.skin)} alt={voice().alt} width={DESKTOP_FIGURE_PX} height={DESKTOP_FIGURE_PX} />
+          <Box key="minis" flexDirection="row" alignItems="flex-end" height={SPRITE_ROWS}>
+            {helpers}
+            {crowd.more > 0 && <Text dimColor>+{crowd.more}</Text>}
+          </Box>
+          <Svg key="zsemle-dog" source={spriteSvg(v.pose, S.skin, faded)} alt={voice().alt} width={DESKTOP_FIGURE_PX} height={DESKTOP_FIGURE_PX} />
         </Box>
       )
     }

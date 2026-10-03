@@ -59,7 +59,7 @@ const stubEngine = (on: any) => {
   })
   on('classic.StopFailure', () => ({}))
   on('classic.PostModelSwitch', () => ({}))
-  on('ui.open', () => ({ isPlaced: true }) as never)
+  on('ui.open', () => ({ value: { isPlaced: true } }) as never)
   on('tool.call', () => ({ result: 'ran', text: 'ran' }))
   on('prompt.submit', (_$: unknown, e: { text: string }) => ({ text: e.text }))
   on('turn.complete', (_$: unknown, e: { answer: string }) => ({ text: e.answer }))
@@ -99,7 +99,7 @@ describe('skins', () => {
     expect(findSkin('Gémkapocs')).toBe('kapocs')
     expect(findSkin('SLIME')).toBe('trutyi')
     expect(findSkin('kutya')).toBe('zsemle')
-    expect(findSkin('sárkány')).toBeNull()
+    expect(findSkin('unikornis')).toBeNull()
     expect(nextSkin(SKIN_IDS[SKIN_IDS.length - 1]!)).toBe('zsemle')
     expect(nextSkin('zsemle')).toBe('cirmi')
   })
@@ -160,7 +160,7 @@ describe('skin engine', () => {
     const figure = await term.find({ type: 'Client' })
     expect(JSON.stringify(figure?.props)).toContain('#a7a9b0')
     await term.unmount()
-    const bad = await $.command.run({ command: 'zsemle', args: 'skin sárkány' } as never)
+    const bad = await $.command.run({ command: 'zsemle', args: 'skin unikornis' } as never)
     expect(textOf(bad)).toContain('Nincs ilyen figura')
   })
 
@@ -308,5 +308,13 @@ describe('english', () => {
     const key = 'sk-ant-' + 'a'.repeat(30)
     const secret = await $.tool.call({ tool: 'Write', file_path: 'C:/x/a.ts', content: `const k = '${key}'`, tool_use_id: 'en2' } as never)
     expect(String(secret.deny ?? secret.text)).toContain('An Anthropic API key would go into the file')
+  })
+})
+
+describe('sounds', () => {
+  test('every figure has its own sound file', () => {
+    const sounds = SKIN_IDS.map(id => skinOf(id).voice.sound).filter(s => s !== 'sounds/chime.wav')
+    expect(new Set(sounds).size).toBe(sounds.length)
+    for (const id of SKIN_IDS) expect(skinOf(id).voiceEn.sound).toBe(skinOf(id).voice.sound)
   })
 })

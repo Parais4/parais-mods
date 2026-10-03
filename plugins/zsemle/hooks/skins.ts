@@ -1,5 +1,18 @@
 import { lang } from './i18n'
 import { EXTRA_SKINS } from './extra-skins'
+import { CIRMI } from './figures/cirmi'
+import { KAPOCS } from './figures/kapocs'
+import { PINGVIN } from './figures/pingvin'
+import { TEKNOS } from './figures/teknos'
+import { HORCSOG } from './figures/horcsog'
+import { BAGOLY } from './figures/bagoly'
+import { RUBIK } from './figures/rubik'
+import { GUMIKACSA } from './figures/gumikacsa'
+import { BOGRE } from './figures/bogre'
+import { KAKTUSZ } from './figures/kaktusz'
+import { SARKANY } from './figures/sarkany'
+import { SZELLEM } from './figures/szellem'
+import { ROBOT } from './figures/robot'
 import { edits, lower } from './pixels'
 import type { Skin, SkinId, Voice } from './pixels'
 
@@ -55,6 +68,8 @@ const ZSEMLE: Skin = {
     sniff: edits(DOG, [4, 0, 'DD']),
     // Teeth shown, ear pinned back.
     growl: edits(DOG, [5, 2, 'OOWWWW'], [1, 12, 'CCODDD']),
+    // Heavy lid, ear hanging low: the limit is running out.
+    tired: edits(DOG, [2, 5, 'COK'], [0, 12, 'CC'], [1, 12, 'CCCC'], [2, 12, 'ODDDDD'], [3, 12, 'ODDDDD'], [4, 13, 'ODDD'], [5, 12, 'ODDD'], [6, 12, 'ODDD']),
   },
   voice: {
     name: 'Zsemle',
@@ -78,78 +93,6 @@ const ZSEMLE: Skin = {
     snore: 'Zzz',
     sound: 'sounds/bark.wav',
     alt: 'Zsemle, the golden retriever puppy',
-  },
-}
-
-// ---- Cirmi: a grey tabby cat, front-facing head, sitting --------------------
-
-const CAT = [
-  '.G.........G............',
-  '.GG.......GG............',
-  '.GPG.....GPG............',
-  'GGGGSGGGSGGGG...........',
-  'GGWEGGGGGWEGG.........SS',
-  'GGEKGGGGGEKGG.........GG',
-  'LGGGGGPGGGGGL.GGGGG...GG',
-  '.LLLLKLKLLLL.GGSGGGGGGG.',
-  '..LLLLLLLLL.GGGGSGGGGG..',
-  '...LLLLLLLGGGGGGGSGGGG..',
-  '...LLLLLLLGGGGGGGGGGGG..',
-  '...LL..LL.GGGGGGGGGGG...',
-]
-
-const CIRMI: Skin = {
-  id: 'cirmi',
-  label: 'Cirmi, a szürke cirmos cica',
-  aliases: ['macska', 'cica', 'cat', 'cirmos', 'kitty', 'tabby'],
-  palette: {
-    G: [0xa7, 0xa9, 0xb0], // grey coat
-    S: [0x6e, 0x70, 0x78], // tabby stripes
-    L: [0xee, 0xec, 0xe6], // muzzle, chest, paws
-    E: [0x7c, 0xc0, 0x5c], // green eyes
-    K: [0x1c, 0x1c, 0x22], // pupils, mouth
-    P: [0xf0, 0x9a, 0xa8], // nose, inner ear
-    W: [0xff, 0xff, 0xff], // eye highlight, teeth
-    T: [0xe8, 0x78, 0x87], // tongue
-    O: [0x3c, 0x3e, 0x46], // outline
-  },
-  poses: {
-    awake: CAT,
-    blink: edits(CAT, [4, 2, 'GG'], [5, 2, 'KK'], [4, 9, 'GG'], [5, 9, 'KK']),
-    // Mouth open: "Miau!"
-    bark: edits(CAT, [7, 5, 'KTK']),
-    yawn: edits(CAT, [4, 2, 'GG'], [5, 2, 'KK'], [4, 9, 'GG'], [5, 9, 'KK'], [7, 4, 'KTTK']),
-    // Ears flat to the sides.
-    droop: edits(CAT, [0, 0, '............'], [1, 0, '............'], [2, 0, 'GG........GG'], [3, 0, 'PGGGSGGGSGGP']),
-    // Tail tip curls the other way.
-    wag: edits(CAT, [4, 22, '..'], [5, 22, '..'], [4, 20, 'SS'], [5, 20, 'GG'], [6, 20, 'GG.']),
-    // Whiskers twitch.
-    sniff: edits(CAT, [6, 0, 'K'], [6, 12, 'K']),
-    // Hiss: fangs, narrowed eyes.
-    growl: edits(CAT, [4, 2, 'KE'], [4, 9, 'EK'], [7, 4, 'KWKWK']),
-  },
-  voice: {
-    name: 'Cirmi',
-    bark: 'Miau!',
-    growl: 'Fffff!',
-    happy: 'Zöld a teszt, dorombolok!',
-    pet: 'Dorombolok, köszi!',
-    sniff: 'Hmm, gyanús!',
-    snore: 'Zzz',
-    sound: 'sounds/chime.wav',
-    alt: 'Cirmi, a szürke cirmos cica',
-  },
-  labelEn: 'Cirmi, the grey tabby cat',
-  voiceEn: {
-    name: 'Cirmi',
-    bark: 'Meow!',
-    growl: 'Hiss!',
-    happy: 'Tests are green, purring!',
-    pet: 'Purr, thanks!',
-    sniff: 'Hmm, suspicious!',
-    snore: 'Zzz',
-    sound: 'sounds/chime.wav',
-    alt: 'Cirmi, the grey tabby cat',
   },
 }
 
@@ -215,6 +158,8 @@ const TRUTYI: Skin = {
     sniff: edits(SLIME, [5, 3, 'WKS'], [6, 3, 'KKS'], [7, 3, 'KKS'], [5, 9, 'WKS'], [6, 9, 'KKS'], [7, 9, 'KKS']),
     // Eyes narrowed, a frown.
     growl: edits(SLIME, [5, 4, 'KK'], [5, 10, 'KK'], [6, 4, 'SK'], [6, 10, 'KS'], [8, 6, 'MMMM']),
+    // Heavy lids over the eyes, a flat mouth.
+    tired: edits(SLIME, [5, 4, 'OO'], [5, 10, 'OO'], [8, 7, 'MM']),
   },
   voice: {
     name: 'Trutyi',
@@ -241,75 +186,34 @@ const TRUTYI: Skin = {
   },
 }
 
-// ---- Kapocs: a paperclip with big eyes (an original drawing) ---------------
+// Each figure's own sound, relative to the mod root (sounds/CREDITS.md).
+const SOUNDS: Record<string, string> = {
+  zsemle: 'sounds/bark.wav',
+  cirmi: 'sounds/meow.wav',
+  trutyi: 'sounds/blub.wav',
+  kapocs: 'sounds/ding.wav',
+  pingvin: 'sounds/penguin.wav',
+  teknos: 'sounds/hum.wav',
+  horcsog: 'sounds/squeak.wav',
+  bagoly: 'sounds/hoot.wav',
+  rubik: 'sounds/click.wav',
+  gumikacsa: 'sounds/quack.wav',
+  bogre: 'sounds/clink.wav',
+  kaktusz: 'sounds/boing.wav',
+  sarkany: 'sounds/roar.wav',
+  szellem: 'sounds/ooo.wav',
+  robot: 'sounds/beep.wav',
+}
 
-const CLIP = [
-  '.........MMMMMM.........',
-  '........M......M........',
-  '..WWWWW.MWWWWW.M........',
-  '..WKKWW.MWKKWW.M........',
-  '.MWWWWW.MWWWWW.M........',
-  '.M......M......M........',
-  '.M......M......M........',
-  '.M......M......M........',
-  '.M......M......M........',
-  '.M.............M........',
-  '..M...........M.........',
-  '...MMMMMMMMMMM..........',
-]
-
-const KAPOCS: Skin = {
-  id: 'kapocs',
-  label: 'Kapocs, a segítőkész gemkapocs',
-  aliases: ['gemkapocs', 'gémkapocs', 'paperclip', 'clip', 'paper clip'],
-  palette: {
-    M: [0xb8, 0xc0, 0xcc], // steel wire
-    W: [0xff, 0xff, 0xff], // eye whites
-    K: [0x1c, 0x1e, 0x26], // pupils
-    T: [0xe8, 0x78, 0x87], // mouth
-    O: [0x48, 0x50, 0x5c], // outline
-  },
-  poses: {
-    awake: CLIP,
-    blink: edits(CLIP, [2, 2, '.....'], [2, 9, '.....'], [3, 2, 'OOOOO'], [3, 9, 'OOOOO'], [4, 2, '.....'], [4, 9, '.....']),
-    bark: edits(CLIP, [6, 6, 'OTTTO']),
-    yawn: edits(CLIP, [2, 2, '.....'], [2, 9, '.....'], [3, 2, 'OOOOO'], [3, 9, 'OOOOO'], [4, 2, '.....'], [4, 9, '.....'], [6, 6, 'OTTTO'], [7, 6, 'OTTTO']),
-    // Heavy lids, looking down.
-    droop: edits(CLIP, [2, 2, 'OOOOO'], [2, 9, 'OOOOO'], [3, 2, 'WWWWW'], [3, 9, 'WWWWW'], [4, 2, 'WKKWW'], [4, 9, 'WKKWW']),
-    // A hop: one row up.
-    wag: [...CLIP.slice(1), '........................'],
-    // Looks to the left.
-    sniff: edits(CLIP, [3, 2, 'KKWWW'], [3, 9, 'KKWWW']),
-    // Frown: eyebrows tilted down to the middle.
-    growl: edits(CLIP, [1, 2, 'OOO'], [2, 5, 'OO'], [1, 11, 'OOO'], [2, 9, 'OO']),
-  },
-  voice: {
-    name: 'Kapocs',
-    bark: 'Kling!',
-    growl: 'Hé, ezt ne!',
-    happy: 'Zöld a teszt, ugrálok!',
-    pet: 'Hihi, csiklandoz!',
-    sniff: 'Úgy látom, deployoltál!',
-    snore: 'Zzz',
-    sound: 'sounds/chime.wav',
-    alt: 'Kapocs, a gemkapocs',
-  },
-  labelEn: 'Kapocs, the helpful paperclip',
-  voiceEn: {
-    name: 'Kapocs',
-    bark: 'Ding!',
-    growl: 'Hey, not that!',
-    happy: 'Tests are green, hopping!',
-    pet: 'Hehe, that tickles!',
-    sniff: 'Looks like you deployed!',
-    snore: 'Zzz',
-    sound: 'sounds/chime.wav',
-    alt: 'Kapocs, the helpful paperclip',
-  },
+const withSound = (skin: Skin): Skin => {
+  const sound = SOUNDS[skin.id]
+  return sound === undefined ? skin : { ...skin, voice: { ...skin.voice, sound }, voiceEn: { ...skin.voiceEn, sound } }
 }
 
 export const SKINS: Readonly<Record<SkinId, Skin>> = Object.fromEntries(
-  [ZSEMLE, CIRMI, TRUTYI, KAPOCS, ...EXTRA_SKINS].map(skin => [skin.id, skin]),
+  [ZSEMLE, CIRMI, TRUTYI, KAPOCS, PINGVIN, TEKNOS, HORCSOG, BAGOLY, RUBIK, GUMIKACSA, BOGRE, KAKTUSZ, SARKANY, SZELLEM, ROBOT, ...EXTRA_SKINS]
+    .map(withSound)
+    .map(skin => [skin.id, skin]),
 )
 
 export const SKIN_IDS: readonly SkinId[] = Object.keys(SKINS)

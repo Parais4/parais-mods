@@ -590,17 +590,35 @@ function outline(rows: readonly string[]): string[] {
   )
 }
 
-const poseCache = new Map<SkinId, Record<Pose, readonly string[]>>()
+/**
+ * A frame the figure can show: one of the 9 poses, or a skin's extra frame:
+ * `work0`.. (while the model works), `long` (a turn past 3 minutes), `level0`
+ * to `level3` (the resting face by fatigue).
+ */
+export type Frame = Pose | `work${number}` | 'long' | `level${number}`
 
-/** A skin's poses, outlined and padded: the grids every drawing is made from. */
-export function posesOf(skin: SkinId): Record<Pose, readonly string[]> {
-  const cached = poseCache.get(skin)
+const frameCache = new Map<SkinId, Record<string, readonly string[]>>()
+
+/** A skin's frames, outlined and padded: the grids every drawing is made from. */
+export function framesOf(skin: SkinId): Record<string, readonly string[]> {
+  const cached = frameCache.get(skin)
   if (cached !== undefined) return cached
-  const raw = skinOf(skin).poses
-  const out = Object.fromEntries(POSE_NAMES.map(p => [p, outline(raw[p])])) as unknown as Record<Pose, readonly string[]>
-  poseCache.set(skin, out)
+  const s = skinOf(skin)
+  const out: Record<string, readonly string[]> = {}
+  for (const p of POSE_NAMES) out[p] = outline(s.poses[p])
+  ;(s.workFrames ?? []).forEach((g, i) => (out[`work${i}`] = outline(g)))
+  if (s.longTurn !== undefined) out.long = outline(s.longTurn)
+  ;(s.levels ?? []).forEach((g, i) => (out[`level${i}`] = outline(g)))
+  frameCache.set(skin, out)
   return out
 }
+
+/** A skin's 9 poses, outlined and padded. */
+export function posesOf(skin: SkinId): Record<Pose, readonly string[]> {
+  return framesOf(skin) as Record<Pose, readonly string[]>
+}
+
+const rowsOf = (frame: Frame, skin: SkinId) => framesOf(skin)[frame] ?? framesOf(skin).awake ?? []
 
 /** Zsemle's own poses (the default skin). */
 export const POSES: Record<Pose, readonly string[]> = posesOf(DEFAULT_SKIN)
@@ -608,7 +626,23 @@ export const POSES: Record<Pose, readonly string[]> = posesOf(DEFAULT_SKIN)
 export const SPRITE_COLUMNS = (POSES.awake[0]?.length ?? 0) / 2
 export const SPRITE_ROWS = POSES.awake.length / 2
 
-const rgbOf = (skin: SkinId, c: string): readonly [number, number, number] => skinOf(skin).palette[c] ?? [0, 0, 0]
+const rgbRaw = (skin: SkinId, c: string): readonly [number, number, number] => skinOf(skin).palette[c] ?? [0, 0, 0]
+
+// A faded figure (a ghost asleep) for the terminal, which has no opacity: every
+// color mixed 60% toward a mid grey, which reads as see-through on dark and light alike.
+const FADE = 0.6
+let fading = false
+
+const rgbOf = (skin: SkinId, c: string): readonly [number, number, number] => {
+  const rgb = rgbRaw(skin, c)
+  return fading ? (rgb.map(v => Math.round(v * (1 - FADE) + 128 * FADE)) as unknown as readonly [number, number, number]) : rgb
+}
+
+const hexRaw = (skin: SkinId, c: string) =>
+  '#' +
+  rgbRaw(skin, c)
+    .map(v => v.toString(16).padStart(2, '0'))
+    .join('')
 
 const hex = (skin: SkinId, c: string) =>
   '#' +
@@ -647,16 +681,14 @@ function quadrantCell(skin: SkinId, px: string[]): { ch: string; fg?: string; bg
 
 const runCache = new Map<string, SpriteRun[][]>()
 
-/** The pose as lines of runs: quadrant glyphs, at most two colors per cell. */
-export function spriteRuns(pose: Pose, skin: SkinId = DEFAULT_SKIN): SpriteRun[][] {
-  const cacheKey = `${skin}:${pose}`
-  const cached = runCache.get(cacheKey)
-  if (cached !== undefined) return cached
-  const rows = posesOf(skin)[pose]
+/** Grid rows as lines of runs: quadrant glyphs, at most two colors per cell; `faded` mixes every color toward grey. */
+function runsFrom(rows: readonly string[], skin: SkinId, faded: boolean): SpriteRun[][] {
+  fading = faded
   const lines: SpriteRun[][] = []
-  for (let cy = 0; cy < SPRITE_ROWS; cy++) {
+  const width = (rows[0]?.length ?? 0) / 2
+  for (let cy = 0; cy < rows.length / 2; cy++) {
     const runs: SpriteRun[] = []
-    for (let cx = 0; cx < SPRITE_COLUMNS; cx++) {
+    for (let cx = 0; cx < width; cx++) {
       const px = (dy: number, dx: number) => rows[cy * 2 + dy]?.[cx * 2 + dx] ?? '.'
       const cell = quadrantCell(skin, [px(0, 0), px(0, 1), px(1, 0), px(1, 1)])
       const last = runs[runs.length - 1]
@@ -671,23 +703,68 @@ export function spriteRuns(pose: Pose, skin: SkinId = DEFAULT_SKIN): SpriteRun[]
     }
     lines.push(runs)
   }
+  fading = false
+  return lines
+}
+
+/** The frame as lines of runs: quadrant glyphs, at most two colors per cell; `faded` mixes every color toward grey. */
+export function spriteRuns(pose: Frame, skin: SkinId = DEFAULT_SKIN, faded = false): SpriteRun[][] {
+  const cacheKey = `${skin}:${pose}:${faded}`
+  const cached = runCache.get(cacheKey)
+  if (cached !== undefined) return cached
+  const lines = runsFrom(rowsOf(pose, skin), skin, faded)
+  runCache.set(cacheKey, lines)
+  return lines
+}
+
+/**
+ * The frame at half size: each 2 x 2 block of pixels becomes one pixel of its
+ * weightiest opaque color (rare colors weigh more, the outline half), padded to an even height.
+ */
+export function halve(rows: readonly string[]): string[] {
+  // Colors rare in the whole figure (eyes, nose, beak) outweigh the common ones,
+  // so the face survives the halving.
+  const total = new Map<string, number>()
+  for (const r of rows) for (const c of r) if (c !== '.') total.set(c, (total.get(c) ?? 0) + 1)
+  const out: string[] = []
+  const width = rows[0]?.length ?? 0
+  for (let y = 0; y < rows.length; y += 2) {
+    let line = ''
+    for (let x = 0; x < width; x += 2) {
+      const px = [rows[y]?.[x], rows[y]?.[x + 1], rows[y + 1]?.[x], rows[y + 1]?.[x + 1]].filter(
+        (c): c is string => c !== undefined && c !== '.',
+      )
+      if (px.length < 2) {
+        line += '.'
+        continue
+      }
+      const counts = new Map<string, number>()
+      for (const c of px) counts.set(c, (counts.get(c) ?? 0) + (c === 'O' ? 0.5 : 1) / Math.sqrt(total.get(c) ?? 1))
+      line += [...counts.entries()].sort((p, q) => q[1] - p[1] || p[0].localeCompare(q[0]))[0]?.[0] ?? '.'
+    }
+    out.push(line)
+  }
+  if (out.length % 2 === 1) out.push('.'.repeat(out[0]?.length ?? 0))
+  return out
+}
+
+/** The mini figure's size in terminal cells: half the figure. */
+export const MINI_COLUMNS = SPRITE_COLUMNS / 2
+export const MINI_ROWS = Math.ceil(SPRITE_ROWS / 2)
+
+/** The frame at half size as runs: the small helpers that stand for running subagents. */
+export function miniRuns(pose: Frame, skin: SkinId = DEFAULT_SKIN): SpriteRun[][] {
+  const cacheKey = `mini:${skin}:${pose}`
+  const cached = runCache.get(cacheKey)
+  if (cached !== undefined) return cached
+  const lines = runsFrom(halve(rowsOf(pose, skin)), skin, false)
   runCache.set(cacheKey, lines)
   return lines
 }
 
 const svgCache = new Map<string, string>()
 
-/**
- * The pose as an SVG document for surfaces that draw `Svg` (the desktop),
- * where quadrant glyphs do not tile. One sprite pixel is 1 x 2 user units, as
- * tall as a quadrant is in a terminal cell, so both surfaces show the same
- * figure. Each row's runs of one color are merged into a single rect.
- */
-export function spriteSvg(pose: Pose, skin: SkinId = DEFAULT_SKIN): string {
-  const cacheKey = `${skin}:${pose}`
-  const cached = svgCache.get(cacheKey)
-  if (cached !== undefined) return cached
-  const rows = posesOf(skin)[pose]
+function svgFrom(rows: readonly string[], skin: SkinId, faded: boolean): string {
   const width = rows[0]?.length ?? 0
   const rects: string[] = []
   rows.forEach((row, y) => {
@@ -696,14 +773,38 @@ export function spriteSvg(pose: Pose, skin: SkinId = DEFAULT_SKIN): string {
       const c = row[x] ?? '.'
       let end = x + 1
       while (end < row.length && row[end] === c) end++
-      if (c !== '.') rects.push(`<rect x="${x}" y="${y * 2}" width="${end - x}" height="2" fill="${hex(skin, c)}"/>`)
+      if (c !== '.') rects.push(`<rect x="${x}" y="${y * 2}" width="${end - x}" height="2" fill="${hexRaw(skin, c)}"/>`)
       x = end
     }
   })
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${rows.length * 2}" shape-rendering="crispEdges">` +
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${rows.length * 2}" shape-rendering="crispEdges"${faded ? ' opacity="0.35"' : ''}>` +
     rects.join('') +
     '</svg>'
+  )
+}
+
+/**
+ * The frame as an SVG document for surfaces that draw `Svg` (the desktop),
+ * where quadrant glyphs do not tile. One sprite pixel is 1 x 2 user units, as
+ * tall as a quadrant is in a terminal cell, so both surfaces show the same
+ * figure. Each row's runs of one color are merged into a single rect.
+ */
+export function spriteSvg(pose: Frame, skin: SkinId = DEFAULT_SKIN, faded = false): string {
+  const cacheKey = `${skin}:${pose}:${faded}`
+  const cached = svgCache.get(cacheKey)
+  if (cached !== undefined) return cached
+  const svg = svgFrom(rowsOf(pose, skin), skin, faded)
+  svgCache.set(cacheKey, svg)
+  return svg
+}
+
+/** The half-size frame as an SVG document, for the desktop's mini figures. */
+export function miniSvg(pose: Frame, skin: SkinId = DEFAULT_SKIN): string {
+  const cacheKey = `mini:${skin}:${pose}`
+  const cached = svgCache.get(cacheKey)
+  if (cached !== undefined) return cached
+  const svg = svgFrom(halve(rowsOf(pose, skin)), skin, false)
   svgCache.set(cacheKey, svg)
   return svg
 }

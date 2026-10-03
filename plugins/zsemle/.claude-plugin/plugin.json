@@ -1,6 +1,6 @@
 {
   "name": "zsemle",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Zsemle, a pixel-art companion above the prompt (golden retriever, cat, slime, paperclip): watches every usage limit (50/75/90% warnings, pace forecast, resets, API errors, automatic model switch and compaction, cost), stops work at 95%, guards file writes and cheers long turns. English and Hungarian, terminal and desktop.",
   "author": {
     "name": "Parais Gergely"
@@ -26,7 +26,18 @@
         "zsemle",
         "cirmi",
         "trutyi",
-        "kapocs"
+        "kapocs",
+        "pingvin",
+        "teknos",
+        "horcsog",
+        "bagoly",
+        "rubik",
+        "gumikacsa",
+        "bogre",
+        "kaktusz",
+        "sarkany",
+        "szellem",
+        "robot"
       ]
     },
     "reflectQueue": {
@@ -40,6 +51,66 @@
       "title": "Block em and en dashes",
       "description": "The content guard also stops writes that add an em or en dash.",
       "default": false
+    },
+    "fatigueLook": {
+      "type": "boolean",
+      "title": "Fatigue look",
+      "description": "The figure gets tired as the usage limit runs low and fresh again after a reset.",
+      "default": true
+    },
+    "budgetPlanner": {
+      "type": "boolean",
+      "title": "Weekly budget planner",
+      "description": "Splits the weekly allowance into daily shares and warns in the evening when today went over.",
+      "default": true
+    },
+    "modelAdvice": {
+      "type": "boolean",
+      "title": "Model advice",
+      "description": "Suggests a smaller model when a simple task runs on a big one at a high limit.",
+      "default": true
+    },
+    "contextSaver": {
+      "type": "boolean",
+      "title": "Context saver",
+      "description": "Above 70% context, asks the model for shorter answers and smaller file reads.",
+      "default": true
+    },
+    "commitGuard": {
+      "type": "boolean",
+      "title": "Commit guard",
+      "description": "Stops a git commit once when no test ran since the last edit (repeat it to go ahead).",
+      "default": true
+    },
+    "loopWatch": {
+      "type": "boolean",
+      "title": "Loop watch",
+      "description": "Speaks up when the model edits the same file a fifth time in one turn.",
+      "default": true
+    },
+    "morningBrief": {
+      "type": "boolean",
+      "title": "Morning brief",
+      "description": "The first prompt of the day carries a short brief: yesterday's summary, waiting projects, the daily budget.",
+      "default": true
+    },
+    "lessonSniff": {
+      "type": "boolean",
+      "title": "Lesson sniff",
+      "description": "When the same error comes back a third time, suggests recording it as a lesson.",
+      "default": true
+    },
+    "daySummary": {
+      "type": "boolean",
+      "title": "Day summary",
+      "description": "When you sign off, asks for a short summary of the day and keeps it for the next morning.",
+      "default": true
+    },
+    "projectTable": {
+      "type": "string",
+      "title": "Project table file",
+      "description": "Optional: a markdown file with a project table (| [[link|Name]] | status | ...); the morning brief lists the projects marked deploy-var or blokkolt.",
+      "default": ""
     }
   }
 }

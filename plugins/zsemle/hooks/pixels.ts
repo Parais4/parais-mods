@@ -1,9 +1,13 @@
 // The pieces every skin is built from: poses, the grid, voices and the
 // helpers that derive one pose from another. No `$` here.
 
-export type Pose = 'awake' | 'blink' | 'bark' | 'yawn' | 'droop' | 'wag' | 'sniff' | 'growl'
+// awake: the usual face. blink: eyes shut (also asleep). bark: speaking, mouth
+// open. yawn: tired yawn. droop: sad after a failure. wag: happy, alternates with
+// awake. sniff: alert or curious, alternates with awake. growl: angry warning.
+// tired: heavy eyes and hanging ears, the face when the usage limit runs low.
+export type Pose = 'awake' | 'blink' | 'bark' | 'yawn' | 'droop' | 'wag' | 'sniff' | 'growl' | 'tired'
 
-export const POSE_NAMES: readonly Pose[] = ['awake', 'blink', 'bark', 'yawn', 'droop', 'wag', 'sniff', 'growl']
+export const POSE_NAMES: readonly Pose[] = ['awake', 'blink', 'bark', 'yawn', 'droop', 'wag', 'sniff', 'growl', 'tired']
 
 /** A skin's id: the built-in ones and any in extra-skins.ts. */
 export type SkinId = string
@@ -27,6 +31,8 @@ export type Voice = {
   sound: string
   /** Alt text for the desktop drawing. */
   alt: string
+  /** Said once after 22:00 local time by a skin with `nightOwl`. */
+  night?: string
 }
 
 export type Skin = {
@@ -40,6 +46,19 @@ export type Skin = {
   poses: Readonly<Record<Pose, readonly string[]>>
   voice: Voice
   voiceEn: Voice
+  /** Frames shown in turn, a few per second, while the model works: an antenna that blinks, a wheel that runs, steam. */
+  workFrames?: readonly (readonly string[])[]
+  /** Shown while a turn has run past 3 minutes, in place of the work frames: a turtle pulls its head in. */
+  longTurn?: readonly string[]
+  /**
+   * The resting face by fatigue level, 0 to 3 (worst limit under 50%, from 50%,
+   * from 75%, from 90%): a mug that empties. Absent: awake, awake, tired, tired.
+   */
+  levels?: readonly (readonly string[])[]
+  /** Fades to see-through while idle (a ghost). */
+  fadesWhenIdle?: boolean
+  /** Reminds once after 22:00 that it is time to close the day (an owl). */
+  nightOwl?: boolean
 }
 
 export const WIDTH = 24
