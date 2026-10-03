@@ -1,0 +1,19 @@
+{
+  "name": "parais-mods",
+  "owner": {
+    "name": "Parais Gergely"
+  },
+  "metadata": {
+    "description": "Claude Code mods by Parais Gergely."
+  },
+  "plugins": [
+    {
+      "name": "zsemle",
+      "source": "./plugins/zsemle",
+      "description": "A pixel-art companion above the prompt (dog, cat, slime, paperclip) that watches every usage limit, guards file writes and cheers long turns. English and Hungarian, terminal and desktop.",
+      "version": "0.3.0",
+      "license": "MIT",
+      "keywords": ["companion", "usage-limits", "rate-limit", "pixel-art", "mod"]
+    }
+  ]
+}

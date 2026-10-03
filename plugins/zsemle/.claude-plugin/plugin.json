@@ -1,0 +1,45 @@
+{
+  "name": "zsemle",
+  "version": "0.3.0",
+  "description": "Zsemle, a pixel-art companion above the prompt (golden retriever, cat, slime, paperclip): watches every usage limit (50/75/90% warnings, pace forecast, resets, API errors, automatic model switch and compaction, cost), stops work at 95%, guards file writes and cheers long turns. English and Hungarian, terminal and desktop.",
+  "author": {
+    "name": "Parais Gergely"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language / Nyelv",
+      "description": "The language of every message: en (English) or hu (magyar).",
+      "default": "en",
+      "options": [
+        "en",
+        "hu"
+      ]
+    },
+    "skin": {
+      "type": "string",
+      "title": "Figure / Figura",
+      "description": "Which figure sits above the prompt (also /zsemle skin). Melyik figura üljön a prompt fölött.",
+      "default": "zsemle",
+      "options": [
+        "zsemle",
+        "cirmi",
+        "trutyi",
+        "kapocs"
+      ]
+    },
+    "reflectQueue": {
+      "type": "string",
+      "title": "Reflect queue file",
+      "description": "Optional: a log whose non-empty lines are unprocessed /reflect markers. Empty turns the reflect reminder off.",
+      "default": ""
+    },
+    "guardDashes": {
+      "type": "boolean",
+      "title": "Block em and en dashes",
+      "description": "The content guard also stops writes that add an em or en dash.",
+      "default": false
+    }
+  }
+}
