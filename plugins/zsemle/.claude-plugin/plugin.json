@@ -10,41 +10,14 @@
     "language": {
       "type": "string",
       "title": "Language / Nyelv",
-      "description": "The language of every message: en (English) or hu (magyar).",
-      "default": "en",
-      "options": [
-        "en",
-        "hu"
-      ]
+      "description": "The language of every message: en (English) or hu (Hungarian).",
+      "default": "en"
     },
     "skin": {
       "type": "string",
       "title": "Figure / Figura",
-      "description": "Which figure sits above the prompt (also /zsemle skin). Melyik figura üljön a prompt fölött.",
-      "default": "zsemle",
-      "options": [
-        "zsemle",
-        "cirmi",
-        "trutyi",
-        "kapocs",
-        "pingvin",
-        "teknos",
-        "horcsog",
-        "bagoly",
-        "rubik",
-        "gumikacsa",
-        "bogre",
-        "kaktusz",
-        "sarkany",
-        "szellem",
-        "robot"
-      ]
-    },
-    "reflectQueue": {
-      "type": "string",
-      "title": "Reflect queue file",
-      "description": "Optional: a log whose non-empty lines are unprocessed /reflect markers. Empty turns the reflect reminder off.",
-      "default": ""
+      "description": "The default figure, by its id: zsemle (dog), cirmi (cat), trutyi (slime), kapocs (paperclip), pingvin (penguin), teknos (turtle), horcsog (hamster), bagoly (owl), rubik (cube), gumikacsa (duck), bogre (mug), kaktusz (cactus), sarkany (dragon), szellem (ghost), robot. /zsemle skin <name> also switches it.",
+      "default": "zsemle"
     },
     "guardDashes": {
       "type": "boolean",
@@ -105,12 +78,7 @@
       "title": "Day summary",
       "description": "When you sign off, asks for a short summary of the day and keeps it for the next morning.",
       "default": true
-    },
-    "projectTable": {
-      "type": "string",
-      "title": "Project table file",
-      "description": "Optional: a markdown file with a project table (| [[link|Name]] | status | ...); the morning brief lists the projects marked deploy-var or blokkolt.",
-      "default": ""
     }
-  }
+  },
+  "icon": "./.claude-plugin/icon.png"
 }

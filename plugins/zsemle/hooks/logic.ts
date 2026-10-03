@@ -31,8 +31,8 @@ const NAMES: Record<string, [string, string]> = {
 }
 
 const SHORT: Record<string, [string, string]> = {
-  five_hour: ['5ó', '5h'],
-  seven_day: ['hét', 'week'],
+  five_hour: ['5 órás', '5h'],
+  seven_day: ['heti', 'week'],
   spend_limit: ['költés', 'spend'],
 }
 

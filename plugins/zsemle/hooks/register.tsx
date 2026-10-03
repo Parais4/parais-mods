@@ -219,6 +219,7 @@ const S = {
   lastModelSeen: '',
   // Running subagents by id, with when each started: one mini figure each.
   agents: new Map<string, number>(),
+  nextAgentCheckAt: 0,
   startedAt: new Map<string, number>(),
   isWorking: false,
   lastActivity: 0,
@@ -268,6 +269,11 @@ const S = {
 
 const voice = (): Voice => voiceOf(S.skin)
 
+// The host already labels status lines and toasts with the plugin's name
+// ("zsemle"), so the default figure's name would be said twice; other figures
+// keep theirs, it tells which one is speaking.
+const tag = (sep: string): string => (voice().name.toLowerCase() === 'zsemle' ? '' : `${voice().name}${sep}`)
+
 type Tone = 'red' | 'yellow' | 'coat' | 'heart' | 'dim' | 'plain'
 // `key` names the message: once acknowledged it stays hidden until a message
 // with another key comes. `quiet` messages never open the bubble.
@@ -286,7 +292,7 @@ function alert($: EngineInterface, now: number, text: string, opts: { tone?: Ton
   S.alertTone = opts.tone ?? 'yellow'
   S.alertPose = opts.pose ?? 'droop'
   S.alertUntil = now + (opts.ms ?? 3 * MIN)
-  if (opts.toast !== false) $.ui.toast(`${voice().name}: ${text}`, { timeoutMs: 8000 })
+  if (opts.toast !== false) $.ui.toast(`${tag(': ')}${text}`, { timeoutMs: 8000 })
   $.ui.invalidate('ui.render')
 }
 
@@ -451,7 +457,63 @@ async function playBark($: EngineInterface): Promise<void> {
     )
     return
   }
-  await $.audio.play({ asset })
+  await playAsset($, asset)
+}
+
+/** Plays one of the bundled sounds; every asset is named as fixed text. */
+async function playAsset($: EngineInterface, asset: string): Promise<void> {
+  switch (asset) {
+    case 'sounds/bark.wav':
+      await $.audio.play({ asset: 'sounds/bark.wav' })
+      return
+    case 'sounds/chime.wav':
+      await $.audio.play({ asset: 'sounds/chime.wav' })
+      return
+    case 'sounds/meow.wav':
+      await $.audio.play({ asset: 'sounds/meow.wav' })
+      return
+    case 'sounds/blub.wav':
+      await $.audio.play({ asset: 'sounds/blub.wav' })
+      return
+    case 'sounds/ding.wav':
+      await $.audio.play({ asset: 'sounds/ding.wav' })
+      return
+    case 'sounds/penguin.wav':
+      await $.audio.play({ asset: 'sounds/penguin.wav' })
+      return
+    case 'sounds/hum.wav':
+      await $.audio.play({ asset: 'sounds/hum.wav' })
+      return
+    case 'sounds/squeak.wav':
+      await $.audio.play({ asset: 'sounds/squeak.wav' })
+      return
+    case 'sounds/hoot.wav':
+      await $.audio.play({ asset: 'sounds/hoot.wav' })
+      return
+    case 'sounds/click.wav':
+      await $.audio.play({ asset: 'sounds/click.wav' })
+      return
+    case 'sounds/quack.wav':
+      await $.audio.play({ asset: 'sounds/quack.wav' })
+      return
+    case 'sounds/clink.wav':
+      await $.audio.play({ asset: 'sounds/clink.wav' })
+      return
+    case 'sounds/boing.wav':
+      await $.audio.play({ asset: 'sounds/boing.wav' })
+      return
+    case 'sounds/roar.wav':
+      await $.audio.play({ asset: 'sounds/roar.wav' })
+      return
+    case 'sounds/ooo.wav':
+      await $.audio.play({ asset: 'sounds/ooo.wav' })
+      return
+    case 'sounds/beep.wav':
+      await $.audio.play({ asset: 'sounds/beep.wav' })
+      return
+    default:
+      return
+  }
 }
 
 async function pet($: EngineInterface): Promise<void> {
@@ -528,15 +590,7 @@ async function scanPorts($: EngineInterface): Promise<PortClash | null> {
 }
 
 async function refreshReflect($: EngineInterface): Promise<number> {
-  if (S.reflectQueue === '') {
-    S.reflectCount = 0
-    return 0
-  }
-  try {
-    S.reflectCount = queueCount(await $.fs.read(S.reflectQueue))
-  } catch {
-    S.reflectCount = 0
-  }
+  S.reflectCount = 0
   return S.reflectCount
 }
 
@@ -547,19 +601,31 @@ async function scanAll($: EngineInterface): Promise<void> {
 /** The status line under the prompt: the figure's name and every limit at a glance. */
 function pushStatus($: EngineInterface, verdict: Verdict): void {
   const body = statusText(verdict)
-  const line = S.isStatusOff || body === '' ? '' : `${voice().name} · ${body}`
+  const line = S.isStatusOff || body === '' ? '' : `${tag(' · ')}${body}`
   if (line === S.lastStatus) return
   S.lastStatus = line
   $.ui.status(line === '' ? undefined : line)
 }
 
+// A stopped (killed) subagent sends no SubagentStop, so the session's own list
+// is asked every couple of seconds while a mini figure is out.
+const AGENT_CHECK_MS = 2000
+
+async function pruneAgents($: EngineInterface, now: number): Promise<void> {
+  if (S.agents.size === 0 || now < S.nextAgentCheckAt) return
+  S.nextAgentCheckAt = now + AGENT_CHECK_MS
+  const listed = await $.agent.list()
+  for (const a of listed) if (a.status !== 'running' && S.agents.delete(a.id)) $.ui.invalidate('ui.render')
+}
+
 async function onTick($: EngineInterface): Promise<void> {
   const now = await $.clock.now()
+  await pruneAgents($, now).catch(() => undefined)
   const working = now - S.lastActivity < BREAK_GAP_MS
   if (working && S.workStart > 0 && now - S.workStart >= REST_AFTER_MS && now >= S.restUntil && now - S.restShownAt >= 30 * MIN) {
     S.restUntil = now + 5 * MIN
     S.restShownAt = now
-    $.ui.toast(`${voice().name}: ${tr('már 90 perce dolgozol, tarts egy kis szünetet!', 'you have been at it for 90 minutes, take a short break!')}`)
+    $.ui.toast(`${tag(': ')}${tr('már 90 perce dolgozol, tarts egy kis szünetet!', 'you have been at it for 90 minutes, take a short break!')}`)
   }
   if (working && !S.isScanning && now >= S.nextScanAt) {
     S.isScanning = true
@@ -674,13 +740,6 @@ async function morningBrief($: EngineInterface, now: number): Promise<string> {
   await $.store.set('briefDay', t.day)
   const yesterday = (await $.store.get(`summary:${localTime(now - DAY).day}`)) as string | undefined
   let projects: ReturnType<typeof parseProjectTable> = []
-  if (S.projectTable !== '') {
-    try {
-      projects = parseProjectTable(await $.fs.read(S.projectTable))
-    } catch {
-      projects = []
-    }
-  }
   const b = await todayBudget($, now, await read($, limits))
   return briefNote({ yesterday: yesterday ?? null, projects, budget: b === null ? null : budgetLine(b), reflect: await refreshReflect($) })
 }
@@ -877,13 +936,13 @@ export const register: Register = (on, options) => {
         alert($, now, back.map(resetNote).join(' '), { tone: 'coat', pose: 'wag', ms: MIN })
       }
       for (const c of crossings(before, fresh)) {
-        $.ui.toast(`${voice().name}: ${crossingNote(c, now)}`, { timeoutMs: 8000 })
+        $.ui.toast(`${tag(': ')}${crossingNote(c, now)}`, { timeoutMs: 8000 })
       }
       const pace = worstForecast(fresh, now)
       const paceKey = pace === null ? '' : `${pace.limit.kind}:${pace.limit.resetsAt ?? ''}`
       if (pace !== null && !S.pacedWindows.has(paceKey)) {
         S.pacedWindows.add(paceKey)
-        $.ui.toast(`${voice().name}: ${paceNote(pace, now)}`, { timeoutMs: 10000 })
+        $.ui.toast(`${tag(': ')}${paceNote(pace, now)}`, { timeoutMs: 10000 })
       }
       if (verdict.level !== 'stop' && wasStopped) {
         // The window reset: wake up on our own and drop any override.

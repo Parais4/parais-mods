@@ -18,6 +18,7 @@ Zsemle watches the 5-hour and weekly windows, the context, API errors and your s
 - [Settings](#settings)
 - [Troubleshooting](#troubleshooting)
 - [Privacy](#privacy)
+- [Under the hood](#under-the-hood)
 - [Magyarul](#magyarul)
 
 ## Figures
@@ -86,7 +87,7 @@ All on by default; switch any of them off in `/config` or with `/zsemle feature 
 | `contextSaver` | above 70% context, asks the model for shorter answers and smaller file reads |
 | `commitGuard` | stops a `git commit` once when no test ran since the last edit; repeat the commit within 2 minutes to go ahead |
 | `loopWatch` | speaks up when the model edits the same file a fifth time in one turn |
-| `morningBrief` | the first prompt of the day carries a short brief: yesterday's summary, projects waiting to ship (from `projectTable`), today's budget |
+| `morningBrief` | the first prompt of the day carries a short brief: yesterday's day summary and today's budget |
 | `lessonSniff` | when the same error comes back in a third turn, suggests recording it as a lesson |
 | `daySummary` | when you sign off ("thanks, that's all"), asks for a short summary of the day and keeps it for the next morning's brief |
 
@@ -142,8 +143,6 @@ In `/config`, or in `~/.claude/settings.json` under `pluginConfigs.zsemle.option
 | `language` | `en` | `en` or `hu` |
 | `skin` | `zsemle` | the default figure, by its short id (`zsemle` dog, `cirmi` cat, `trutyi` slime, `kapocs` paperclip, `pingvin` penguin, `teknos` turtle, `horcsog` hamster, `bagoly` owl, `rubik` cube, `gumikacsa` duck, `bogre` mug, `kaktusz` cactus, `sarkany` dragon, `szellem` ghost, `robot` robot) |
 | `guardDashes` | `false` | the content guard also blocks em and en dashes |
-| `reflectQueue` | empty | a log file whose non-empty lines are unprocessed `/reflect` markers (empty: no reminder) |
-| `projectTable` | empty | a markdown file with a project table (`\| [[link\|Name]] \| status \| ... \|`); the morning brief lists rows marked `deploy-var` or `blokkolt` |
 | feature switches | `true` | see [Optional features](#optional-features) |
 
 Example:
@@ -169,6 +168,42 @@ Example:
 ## Privacy
 
 Zsemle runs inside your Claude Code session and sends nothing anywhere on its own. `/zsemle ask` and `/zsemle summary` make one small model call through your own Claude Code session (counted in your usage). It runs local commands only to look: `git status --porcelain` (commit sniff), `netstat -ano` or `lsof` (port guard), `date` or PowerShell (time zone), and PowerShell's SoundPlayer for the sound on Windows. Its state (stats, choices, the day summary) stays in Claude Code's plugin store on your machine.
+
+## Under the hood
+
+Everything Zsemle does, for reviewers and the curious. It is a Claude Code mod: one hooks module (`hooks/register.tsx`) with pure helpers beside it, no network code of its own, no files written.
+
+**Hooks and what each one does**
+
+| hook | what it does with what it sees | does it change anything? |
+| --- | --- | --- |
+| `session.start` | registers `/zsemle`, reads the usage figures, loads the user's choices from the plugin store, starts a 250 ms timer that redraws the figure | no |
+| `session.measure` | reads the rate-limit windows, context fill and cost; raises toasts at thresholds, pace forecasts and resets | no |
+| `classic.StopFailure` | reads the error kind of a turn that ended on an API error and explains it in the bubble | no |
+| `classic.PostModelSwitch` | notices an automatic model fallback and tells the user | no |
+| `classic.SubagentStart`, `classic.SubagentStop` | reads the subagent id to add or remove a mini figure | no |
+| `session.compact` | passes the compaction on (`next`) and tells the user when it was automatic | no |
+| `tool.call` | sees every tool call. It denies a call only in these cases, with the reason as the answer, never standing in for the tool otherwise: at 95% of a usage window (until `/zsemle wake`); when a file write (Write, Edit, MultiEdit, NotebookEdit) would add a secret, an emoji in code, a curly quote as a JS string delimiter, or (option `guardDashes`) an em/en dash; once for a `git commit` with no test since the last edit (`commitGuard`). Every other call goes on through `next` and its result is returned; after a Bash call it may append a short note for the model (check the live state after a deploy, a command keeps failing, two dev servers on one port, a repeated error worth a lesson, the same file edited a fifth time) | denies as listed; adds notes to the tool result |
+| `prompt.submit` | reads the prompt text only to spot a sign-off ("thanks, that's all") or a simple task; drops the prompt at 95% of a window (until `/zsemle wake`); may add notes for the model (see below) | adds notes; drops at 95% |
+| `turn.start`, `turn.complete` | times turns; keeps the answer of a day-summary turn as the day summary; plays the figure's sound after a turn over 3 minutes | no |
+| `command.run` (`/zsemle`) | answers the commands listed above | no |
+| `ui.render`, `ui.message` | draws the figure, its bubble, the skin picker and the weekly chart; takes clicks on them | no |
+
+**What it puts in the prompts and tool results it passes on.** Short plain-text notes for the model, each from a feature the user can switch off: the context is above 80% (update the status note, then suggest `/compact`), above 70% (work lean: short answers, small file reads), the morning brief (yesterday's summary and today's budget, to tell the user), the day summary request when the user signs off, a deploy just ran (check the live state), the same command failed several times (find the root cause), two dev servers share a port (with the PIDs), an error came back a third time (suggest recording a lesson), a file edited a fifth time in one turn (stop and look at the whole).
+
+**Programs it runs, and why.** Each with fixed arguments:
+- `git status --porcelain` in the session folder, every 2 minutes while working: counts uncommitted files for the commit reminder.
+- `netstat -ano` (Windows) or `lsof -nP -iTCP -sTCP:LISTEN` (elsewhere), every 2 minutes and after a dev-server command: finds two processes on one dev port.
+- `date +%z` (or `powershell -NoProfile -Command "Get-Date -Format zzz"` on Windows), once at session start in English: the time zone for the times it shows.
+- On Windows only, `powershell -NoProfile -Command "(New-Object Media.SoundPlayer '<plugin folder>\sounds\<figure>.wav').PlaySync()"` when a long turn ends: Windows terminals have no other way to play the bundled sound. The path is always one of the plugin's own WAV files. Elsewhere the sound goes through Claude Code's own audio call.
+
+**What it sends, and where.** Nothing on its own. Two commands make one model call each through the user's own Claude Code session (`$.model.complete`, a small model), only when the user runs them: `/zsemle ask <question>` sends the question with the user's limit report and today's stats; `/zsemle summary` sends the last 60 messages of the session, each cut to 400 characters. Both count toward the user's own usage. No telemetry, no analytics, no third parties.
+
+**Secrets.** Zsemle reads no credentials. The content guard only matches key-shaped patterns (for example `sk-ant-...`, `AKIA...`, `ghp_...`, private-key headers) in the text a tool is about to write, to stop a leak; it never stores or sends what it matches.
+
+**Reflective code.** The tool-call hook reads the input of file-writing tools as a plain record (`file_path`, `content`, `new_string`, `old_string`, `edits`, `new_source`) because their shapes differ per tool; `Object.hasOwn` and prefixed keys keep the error-signature counter safe from prototype keys.
+
+**Other plugins.** It calls no other plugin and needs none.
 
 ## Credits
 
