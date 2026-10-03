@@ -1428,8 +1428,6 @@ export const register: Register = (on, options) => {
     )
 
     if (e.surface === 'terminal') {
-      const { Client } = $.ui.resolve(e)
-
       const crowd = minis(now)
       const helpers = crowd.shown.map(m => (
         <Box key={`mini-${m.id}`} flexDirection="column" marginLeft={m.left} marginBottom={m.lift} width={MINI_COLUMNS + 3}>
@@ -1445,15 +1443,32 @@ export const register: Register = (on, options) => {
         </Box>
       ))
 
+      const crowdBox = (
+        <Box key="minis" flexDirection="row" alignItems="flex-end" height={SPRITE_ROWS}>
+          {helpers}
+          {crowd.more > 0 && <Text dimColor>+{crowd.more}</Text>}
+        </Box>
+      )
+
+
+      // The figure as rows of colored text, with a small heart to pet it.
       return (
         <Box flexDirection="row" justifyContent="flex-end" alignItems="flex-start">
           {bubble}
           {pointer}
-          <Box key="minis" flexDirection="row" alignItems="flex-end" height={SPRITE_ROWS}>
-            {helpers}
-            {crowd.more > 0 && <Text dimColor>+{crowd.more}</Text>}
+          {crowdBox}
+          <Box key="zsemle-dog" flexDirection="column" alignItems="flex-end">
+            {spriteRuns(v.pose, S.skin, faded).map((runs, y) => (
+              <Box key={`dog-${y}`} flexDirection="row">
+                {runs.map((run, i) => (
+                  <Text key={`dog-${y}-${i}`} color={run.fg} backgroundColor={run.bg}>
+                    {run.text}
+                  </Text>
+                ))}
+              </Box>
+            ))}
+            {!isOpen && <Button key="pet-quiet" label="♥" plain dimColor onPress={() => pet($)} />}
           </Box>
-          <Client module="./dog.tsx" key="zsemle-dog" props={{ lines: spriteRuns(v.pose, S.skin, faded) }} width={SPRITE_COLUMNS} height={SPRITE_ROWS} />
         </Box>
       )
     }
@@ -1483,7 +1498,7 @@ export const register: Register = (on, options) => {
       )
     }
 
-    // No Client here (vscode, mobile): the bubble alone, and nothing while quiet.
+    // No figure on vscode and mobile: the bubble alone, and nothing while quiet.
     if (!isOpen) {
       return next(e)
     }
