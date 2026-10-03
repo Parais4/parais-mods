@@ -683,8 +683,8 @@ async function limitReport($: EngineInterface): Promise<string> {
 /** Local midnight of `now`, from the local clock reading. */
 function dayStart(now: number): number {
   const hm = localTime(now).hm
-  const [h, m] = hm.split(':').map(Number)
-  return now - ((h ?? 0) * 3600 + (m ?? 0) * 60) * 1000 - (now % 60000)
+  const [hour, minute] = hm.split(':').map(Number)
+  return now - ((hour ?? 0) * 3600 + (minute ?? 0) * 60) * 1000 - (now % 60000)
 }
 
 /** The weekly use at the day's first reading, kept per local day. */
@@ -727,8 +727,8 @@ async function bumpActivity($: EngineInterface, now: number): Promise<void> {
   const t = localTime(now)
   const key = `act:${t.day}`
   const hours = ((await $.store.get(key)) as number[] | undefined) ?? Array.from({ length: 24 }, () => 0)
-  const h = Number(t.hm.slice(0, 2))
-  hours[h] = (hours[h] ?? 0) + 1
+  const hour = Number(t.hm.slice(0, 2))
+  hours[hour] = (hours[hour] ?? 0) + 1
   await $.store.set(key, hours)
 }
 
@@ -1321,7 +1321,7 @@ export const register: Register = (on, options) => {
       if (isTerminal) {
         const { Client } = $.ui.resolve(e)
         figure = (
-          <Client key={`pick-${id}`} module="./dog.tsx" props={{ lines: spriteRuns('awake', id), pick: id }} width={SPRITE_COLUMNS} height={SPRITE_ROWS} />
+          <Client module="./dog.tsx" key={`pick-${id}`} props={{ lines: spriteRuns('awake', id), pick: id }} width={SPRITE_COLUMNS} height={SPRITE_ROWS} />
         )
       } else if (e.surface === 'desktop') {
         const { Svg } = $.ui.resolve(e)
@@ -1360,7 +1360,7 @@ export const register: Register = (on, options) => {
     for (let i = 6; i >= 0; i--) {
       const day = localTime(now - i * DAY).day
       const saved = (await $.store.get(`act:${day}`)) as number[] | undefined
-      days.push({ day, hours: Array.from({ length: 24 }, (_, h) => saved?.[h] ?? 0) })
+      days.push({ day, hours: Array.from({ length: 24 }, (_, hour) => saved?.[hour] ?? 0) })
     }
     return (
       <Box flexDirection="column">
@@ -1423,7 +1423,7 @@ export const register: Register = (on, options) => {
       const crowd = minis(now)
       const helpers = crowd.shown.map(m => (
         <Box key={`mini-${m.id}`} flexDirection="column" marginLeft={m.left} marginBottom={m.lift} width={MINI_COLUMNS + 3}>
-          <Client key={`mini-c-${m.id}`} module="./dog.tsx" props={{ lines: miniRuns(m.frame, S.skin) }} width={MINI_COLUMNS} height={MINI_ROWS} />
+          <Client module="./dog.tsx" key={`mini-c-${m.id}`} props={{ lines: miniRuns(m.frame, S.skin) }} width={MINI_COLUMNS} height={MINI_ROWS} />
         </Box>
       ))
 
@@ -1435,7 +1435,7 @@ export const register: Register = (on, options) => {
             {helpers}
             {crowd.more > 0 && <Text dimColor>+{crowd.more}</Text>}
           </Box>
-          <Client key="zsemle-dog" module="./dog.tsx" props={{ lines: spriteRuns(v.pose, S.skin, faded) }} width={SPRITE_COLUMNS} height={SPRITE_ROWS} />
+          <Client module="./dog.tsx" key="zsemle-dog" props={{ lines: spriteRuns(v.pose, S.skin, faded) }} width={SPRITE_COLUMNS} height={SPRITE_ROWS} />
         </Box>
       )
     }
