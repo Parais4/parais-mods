@@ -125,9 +125,9 @@ Run it from a local folder instead (for hacking on it): clone this repo and star
 | `/zsemle features` | `/zsemle kapcsolok` | the optional features and their state |
 | `/zsemle feature <name> off/on` | `/zsemle kapcsolo <név> ki/be` | switch one, e.g. `commitGuard` |
 | `/zsemle stats` | `/zsemle stat` | today's stats |
-| `/zsemle ok` | | "got it": hides the bubble until there is news (or double-click the head) |
+| `/zsemle ok` | | "got it": hides the bubble until there is news (or the bubble's `ok` button) |
 | `/zsemle mute` / `sound` | `nemit` / `hang` | sound off/on |
-| `/zsemle pet` | `simi` | a pat (or click the figure) |
+| `/zsemle pet` | `simi` | a pat (or the ♥ button next to the figure or in the bubble) |
 | `/zsemle hide` / `show` | `elrejt` / `mutat` | hide or show the figure |
 | `/zsemle bar off/on` | `sor ki/be` | the limit line under the prompt |
 | `/zsemle guard off/on` | `or ki/be` | the content guard for this session |
