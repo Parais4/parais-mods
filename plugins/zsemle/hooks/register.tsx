@@ -4,6 +4,7 @@ import type { EngineInterface, PluginOptions, Register, Timer } from 'claude-cod
 import type { Limit } from '../types'
 import { asLang, lang, parseOffset, setLang, setUtcOffset, tr } from './i18n'
 import {
+  ageText,
   apiErrorNote,
   autoCompactNote,
   chaseNote,
@@ -23,11 +24,14 @@ import {
   IDLE_AFTER_MS,
   isDeployCommand,
   isTestCommand,
+  current,
+  dueResets,
   judge,
   localTime,
   shortModel,
   modelSwitchNote,
   paceNote,
+  refillNote,
   resetNote,
   resets,
   REST_AFTER_MS,
@@ -102,6 +106,9 @@ import { asSkin, DEFAULT_SKIN, findSkin, labelOf, nextSkin, SKIN_IDS, skinOf, sk
 import type { SkinId, Voice } from './skins'
 
 const limits = atom({ plugin: 'zsemle', key: 'limits' } as const, [] as Limit[])
+// When the limit readings last arrived, and the resets already told by the clock.
+const limitsReadAt = atom({ plugin: 'zsemle', key: 'limitsReadAt' } as const, 0)
+const announcedResets = atom({ plugin: 'zsemle', key: 'announcedResets' } as const, [] as string[])
 const isHidden = atom({ plugin: 'zsemle', key: 'isHidden' } as const, false)
 const isWoken = atom({ plugin: 'zsemle', key: 'isWoken' } as const, false)
 const isGuardOff = atom({ plugin: 'zsemle', key: 'isGuardOff' } as const, false)
@@ -428,7 +435,7 @@ function toLimits(raw: readonly { kind: string; percentUsed: number; resetsAt?: 
 
 async function currentView($: EngineInterface, now: number): Promise<{ v: View; verdict: Verdict }> {
   const all = await read($, limits)
-  const verdict = judge(all, now)
+  const verdict = judge(all, now, await read($, limitsReadAt))
   const isStopped = verdict.level === 'stop' && !(await read($, isWoken))
   return { v: view(now, verdict, isStopped, all), verdict }
 }
@@ -618,9 +625,24 @@ async function pruneAgents($: EngineInterface, now: number): Promise<void> {
   for (const a of listed) if (a.status !== 'running' && S.agents.delete(a.id)) $.ui.invalidate('ui.render')
 }
 
+const resetKey = (l: Limit) => `${l.kind}:${l.resetsAt ?? ''}`
+
+/** A window whose reset time passed with no fresh reading: told once, by the clock. */
+async function announceResets($: EngineInterface, now: number): Promise<void> {
+  const due = dueResets(await read($, limits), now)
+  if (due.length === 0) return
+  const told = await read($, announcedResets)
+  const fresh = due.filter(l => !told.includes(resetKey(l)))
+  if (fresh.length === 0) return
+  await update($, announcedResets, list => [...list, ...fresh.map(resetKey)].slice(-20))
+  S.wagUntil = now + 6 * SEC
+  alert($, now, fresh.map(l => refillNote(l.kind)).join(' '), { tone: 'coat', pose: 'wag', ms: MIN })
+}
+
 async function onTick($: EngineInterface): Promise<void> {
   const now = await $.clock.now()
   await pruneAgents($, now).catch(() => undefined)
+  await announceResets($, now).catch(() => undefined)
   const working = now - S.lastActivity < BREAK_GAP_MS
   if (working && S.workStart > 0 && now - S.workStart >= REST_AFTER_MS && now >= S.restUntil && now - S.restShownAt >= 30 * MIN) {
     S.restUntil = now + 5 * MIN
@@ -648,7 +670,7 @@ async function onTick($: EngineInterface): Promise<void> {
 /** Every limit at once, for /zsemle limit. */
 async function limitReport($: EngineInterface): Promise<string> {
   const now = await $.clock.now()
-  const all = await read($, limits)
+  const all = current(await read($, limits), now)
   const verdict = judge(all, now)
   const lines = [tr(`${voice().name} limit-jelentése:`, `${voice().name}'s limit report:`)]
   if (all.length === 0) {
@@ -665,6 +687,8 @@ async function limitReport($: EngineInterface): Promise<string> {
     const f = worstForecast([l], now)
     if (f !== null) lines.push(`  ${''.padEnd(14)} ${paceNote(f, now)}`)
   }
+  const readAt = await read($, limitsReadAt)
+  if (all.length > 0 && readAt > 0) lines.push(`  ${tr('limitadat:', 'limit data:').padEnd(15)}${ageText(now - readAt)}`)
   const budget = await todayBudget($, now, all)
   if (budget !== null) lines.push(`  ${budgetLine(budget)}`)
   const ctx = S.contextPct === null ? tr('nincs adat', 'no reading') : `${Math.round(S.contextPct)}%`
@@ -714,7 +738,7 @@ async function eveningChecks($: EngineInterface, now: number): Promise<void> {
     alert($, now, night, { tone: 'coat', pose: 'sniff', ms: 5 * MIN })
   }
   if (hour >= 20 && (await $.store.get('budgetWarned')) !== t.day) {
-    const b = await todayBudget($, now, await read($, limits))
+    const b = await todayBudget($, now, current(await read($, limits), now))
     if (b !== null && b.usedToday > b.allowance) {
       await $.store.set('budgetWarned', t.day)
       alert($, now, budgetOverNote(b), { pose: 'tired', ms: 5 * MIN })
@@ -740,7 +764,7 @@ async function morningBrief($: EngineInterface, now: number): Promise<string> {
   await $.store.set('briefDay', t.day)
   const yesterday = (await $.store.get(`summary:${localTime(now - DAY).day}`)) as string | undefined
   let projects: ReturnType<typeof parseProjectTable> = []
-  const b = await todayBudget($, now, await read($, limits))
+  const b = await todayBudget($, now, current(await read($, limits), now))
   return briefNote({ yesterday: yesterday ?? null, projects, budget: b === null ? null : budgetLine(b), reflect: await refreshReflect($) })
 }
 
@@ -889,6 +913,7 @@ export const register: Register = (on, options) => {
     try {
       const usage = await $.session.usage()
       await update($, limits, () => toLimits(usage.rateLimits))
+      if (usage.rateLimits.length > 0 && (await read($, limitsReadAt)) === 0) await update($, limitsReadAt, () => now)
       S.contextPct = usage.context.percent ?? null
       S.costUsd = usage.cost?.usd ?? 0
     } catch {
@@ -927,10 +952,13 @@ export const register: Register = (on, options) => {
       const wasStopped = judge(before, now).level === 'stop'
       const fresh = toLimits(e.rateLimits)
       await update($, limits, () => fresh)
+      await update($, limitsReadAt, () => now)
       await noteBudgetStart($, now, fresh)
       const verdict = judge(fresh, now)
 
-      const back = resets(before, fresh)
+      // A reset the clock already told is not celebrated again.
+      const told = await read($, announcedResets)
+      const back = resets(before, fresh).filter(l => !told.includes(resetKey(before.find(b => b.kind === l.kind) ?? l)))
       if (back.length > 0) {
         S.wagUntil = now + 6 * SEC
         alert($, now, back.map(resetNote).join(' '), { tone: 'coat', pose: 'wag', ms: MIN })

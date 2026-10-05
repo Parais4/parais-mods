@@ -132,18 +132,65 @@ export type Verdict = {
   status: string
 }
 
-export function statusLine(limits: readonly Limit[]): string {
-  return limits.map(l => `${pick(SHORT[l.kind], l.kind)} ${Math.round(l.percentUsed)}%`).join(' · ')
+/**
+ * The readings as they stand now. A reading only changes with the next API
+ * response, so a session that sent nothing since a window reset still holds the
+ * old percentage; a window whose reset time has passed has started over.
+ */
+export function current(limits: readonly Limit[], nowMs: number): Limit[] {
+  return limits.map(l => {
+    const ms = l.resetsAt === undefined ? Number.NaN : Date.parse(l.resetsAt)
+    return !Number.isNaN(ms) && ms <= nowMs ? { kind: l.kind, percentUsed: 0, isRestarted: true } : l
+  })
 }
 
-export function judge(limits: readonly Limit[], nowMs = Date.now()): Verdict {
+/** The windows whose reset time has passed by now. */
+export function dueResets(limits: readonly Limit[], nowMs: number): Limit[] {
+  return limits.filter(l => {
+    const ms = l.resetsAt === undefined ? Number.NaN : Date.parse(l.resetsAt)
+    return !Number.isNaN(ms) && ms <= nowMs
+  })
+}
+
+/** A reading older than this gets its age in the status line. */
+export const STALE_AFTER_MS = 15 * 60 * 1000
+
+/** How old a reading is: "25 perce", "3 órája", "2 napja"; "25 min ago", "3 h ago", "2 d ago". */
+export function ageText(ms: number): string {
+  const min = Math.max(0, Math.floor(ms / 60000))
+  if (min < 60) return tr(`${min} perce`, `${min} min ago`)
+  const h = Math.floor(min / 60)
+  if (h < 48) return tr(`${h} órája`, `${h} h ago`)
+  const d = Math.floor(h / 24)
+  return tr(`${d} napja`, `${d} d ago`)
+}
+
+/** Told when a window's reset time passes before any fresh reading arrives. */
+export function refillNote(kind: string): string {
+  const name = theName(kind)
+  return tr(
+    `Visszaállt ${name} limit, tele a tank! A pontos százalék a következő válasszal jön.`,
+    `${capital(name)} limit has reset, full tank! The exact percentage comes with the next response.`,
+  )
+}
+
+export function statusLine(limits: readonly Limit[]): string {
+  return limits
+    .map(l => `${pick(SHORT[l.kind], l.kind)} ${Math.round(l.percentUsed)}%${l.isRestarted === true ? tr(' (újraindult)', ' (reset)') : ''}`)
+    .join(' · ')
+}
+
+/** readAtMs: when the readings arrived; an old one adds its age to the status. */
+export function judge(readings: readonly Limit[], nowMs = Date.now(), readAtMs?: number): Verdict {
+  const limits = current(readings, nowMs)
   if (limits.length === 0) {
     return { level: 'none', worst: null, message: tr('Még nincs limitadat.', 'No limit reading yet.'), status: '' }
   }
   const worst = limits.reduce((a, b) => (b.percentUsed > a.percentUsed ? b : a))
   const name = theName(worst.kind)
   const pct = Math.round(worst.percentUsed)
-  const status = statusLine(limits)
+  const age = readAtMs === undefined || readAtMs <= 0 || nowMs - readAtMs < STALE_AFTER_MS ? '' : ` · ${tr('adat', 'data')} ${ageText(nowMs - readAtMs)}`
+  const status = statusLine(limits) + age
   const reset = resetPhrase(worst.resetsAt, nowMs)
   const resetText = reset === null ? '' : tr(` Visszaáll ${reset}.`, ` It resets ${reset}.`)
 

@@ -65,7 +65,8 @@ Switch figures with `/zsemle skin` (a pane with previews: click one), `/zsemle s
 | --- | --- |
 | 5-hour, weekly and spend limits | heads-up at 50%, stronger at 75%, red at 90%; at 95% it stops tool calls and prompts until the window resets (`/zsemle wake` overrides for the session). Every threshold crossed raises a toast with the reset time. |
 | pace | if the window runs out before it resets at the current pace, it tells you roughly when |
-| reset | cheers when a window is full again |
+| reset | cheers when a window is full again: the moment its reset time passes, even in an idle session, and only once |
+| fresh data | a limit reading older than 15 minutes shows its age on the limit line (`data 25 min ago`); a window past its reset reads `0% (reset)` until the next response brings the real number |
 | API errors | explains rate limit, overload, output token limit, billing, login, unavailable model and server errors in plain words |
 | automatic model switch | tells you when the engine fell back to another model |
 | automatic compaction | tells you when the context was compacted, warns at 90% before it happens |
@@ -161,6 +162,7 @@ Example:
 - **Commands are missing (no `skin`, no `limit`).** The session runs an older version: start a new one.
 - **The figure looks broken in the terminal.** It uses the quadrant block characters (U+2596 to U+259F) and truecolor; use a font and terminal that support them (Windows Terminal, iTerm2, most modern terminals).
 - **No sound on Windows.** Zsemle plays its sound through PowerShell's SoundPlayer; check that PowerShell runs and the system sound is on. `/zsemle mute` turns it off.
+- **The limit line shows an old number.** The windows only change with an API response, so an idle session keeps its last reading; the line then says how old it is (`data 3 h ago`), and a window past its reset reads `0% (reset)`. The next answer brings the fresh numbers.
 - **No limit numbers.** The windows come with the API responses on a subscription; they show after the first answer. On an API key there are no windows, and Zsemle watches the cost instead.
 - **The commit guard is in the way.** Repeat the commit within 2 minutes, or `/zsemle feature commitGuard off`.
 - **Times are off.** In English the time zone is read from the machine at session start (`date +%z` or PowerShell); in Hungarian Zsemle uses Budapest time.

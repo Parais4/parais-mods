@@ -1,6 +1,6 @@
 {
   "name": "zsemle",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Zsemle, a pixel-art companion above the prompt (golden retriever, cat, slime, paperclip): watches every usage limit (50/75/90% warnings, pace forecast, resets, API errors, automatic model switch and compaction, cost), stops work at 95%, guards file writes and cheers long turns. English and Hungarian, terminal and desktop.",
   "author": {
     "name": "Parais Gergely"
