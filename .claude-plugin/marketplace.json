@@ -11,7 +11,7 @@
       "name": "zsemle",
       "source": "./plugins/zsemle",
       "description": "A pixel-art companion above the Claude Code prompt (15 figures, each with its own sound) that watches every usage limit, gets tired as the limit runs low, shows a mini figure per running subagent, guards file writes and offers optional helpers (weekly budget, commit guard, morning brief and more). English and Hungarian, terminal and desktop.",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "license": "MIT",
       "keywords": [
         "companion",

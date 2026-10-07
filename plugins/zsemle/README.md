@@ -86,7 +86,7 @@ All on by default; switch any of them off in `/config` or with `/zsemle feature 
 | `budgetPlanner` | splits the weekly window into daily shares (the rest over the days left) and warns in the evening when today went over; `/zsemle limit` shows today's share |
 | `modelAdvice` | a simple task (rename, format, typo, translate...) on a big model at a high limit: suggests `/model sonnet` |
 | `contextSaver` | above 70% context, asks the model for shorter answers and smaller file reads |
-| `commitGuard` | stops a `git commit` once when no test ran since the last edit; repeat the commit within 2 minutes to go ahead |
+| `commitGuard` | stops a `git commit` (Bash or PowerShell tool) once when no test ran since the last edit; repeat the commit within 2 minutes to go ahead. A commit into a throwaway repository (made by `git init` in the same command, or in a temp folder) is not stopped |
 | `loopWatch` | speaks up when the model edits the same file a fifth time in one turn |
 | `morningBrief` | the first prompt of the day carries a short brief: yesterday's day summary and today's budget |
 | `lessonSniff` | when the same error comes back in a third turn, suggests recording it as a lesson |

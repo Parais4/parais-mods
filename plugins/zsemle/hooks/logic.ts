@@ -868,8 +868,8 @@ export function contextSaveNote(percent: number, isSaved: boolean): string {
     return tr(`Kontextus ${pct}%: a "Folytatás innen" mentve, mehet a /compact.`, `Context ${pct}%: the status note is saved, /compact can go.`)
   }
   return tr(
-    `Kontextus ${pct}%: előbb frissítsd a projekt HOME "Folytatás innen" blokkját, aztán /compact.`,
-    `Context ${pct}%: first update the project's status note (HOME.md or INDEX.md), then /compact.`,
+    `Kontextus ${pct}%: előbb frissítsd a projekt HOME "Folytatás innen" blokkját, aztán /compact. Ha másik munkamenetben folytatnád: /atadas <cél>.`,
+    `Context ${pct}%: first update the project's status note (HOME.md or INDEX.md), then /compact. To continue in another session: /atadas <goal>.`,
   )
 }
 
@@ -1044,4 +1044,21 @@ export function statsText(day: string, s: DayStats, name = 'Zsemle'): string {
     `  ugatás:           ${s.barks}`,
     `  simogatás:        ${s.pets}`,
   ].join('\n')
+}
+
+// --- Marveen-atvetel 40 (2026-10-07): kvota-pillanatkep az utemezett futasoknak, hook-jelzesek, megszakitas ---
+
+
+export const INTERRUPT_WINDOW_MS = 10 * 60 * 1000
+export const INTERRUPTS_TO_NOTE = 2
+
+export function recentInterrupts(times: readonly number[], nowMs: number): number[] {
+  return times.filter(t => nowMs - t < INTERRUPT_WINDOW_MS)
+}
+
+export function frustrationNote(count: number): string {
+  return tr(
+    `${count}. megszakítás 10 percen belül. Ha rossz irányba megy, mondd meg egy mondatban, mit szeretnél helyette.`,
+    `Interrupt number ${count} within 10 minutes. If it's going the wrong way, say in one sentence what you want instead.`,
+  )
 }

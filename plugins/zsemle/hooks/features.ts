@@ -139,9 +139,37 @@ export function contextSaverNote(): string {
 
 // ---- Commit guard -----------------------------------------------------------
 
+// Global options may come first, with a value for -C and -c: git -C repo commit, git -c a=b commit.
+const COMMIT_AT = /(?:^|[;&|(]\s*)git\s+(?:(?:-[Cc]\s+\S+|--?[\w-]+(?:=\S+)?)\s+)*commit\b/m
+
 export function isCommitCommand(cmd: string): boolean {
-  // Global options may come first, with a value for -C and -c: git -C repo commit, git -c a=b commit.
-  return /(?:^|[;&|]\s*)git\s+(?:(?:-[Cc]\s+\S+|--?[\w-]+(?:=\S+)?)\s+)*commit\b/m.test(cmd.trim())
+  return COMMIT_AT.test(cmd.trim())
+}
+
+const TEMP_DIR = /^(?:\/tmp\/|\$\{?TMPDIR\b|%TE?MP%|\$env:TE?MP\b|\$\(mktemp\b|[A-Za-z]:[\\/](?:[^\\/]+[\\/])*AppData[\\/]Local[\\/]Temp[\\/]|\/[a-z]\/Users\/[^/]+\/AppData\/Local\/Temp\/)/i
+const unquote = (s: string) => s.replace(/^["']|["']$/g, '')
+
+/**
+ * A commit into a throwaway repository: one the same command makes (`git init` before the commit), or one in a
+ * temp folder (`cd`, `Set-Location`, `Push-Location` or `git -C` to mktemp, /tmp, %TEMP%, $env:TEMP,
+ * AppData/Local/Temp). Such a commit is a test harness, not the project's history, so the commit guard lets it
+ * through. A move into a real folder keeps it guarded.
+ */
+export function isThrowawayCommit(cmd: string): boolean {
+  const m = COMMIT_AT.exec(cmd)
+  if (m === null) return false
+  const before = cmd.slice(0, m.index)
+  if (/\bgit\s+init\b/.test(before)) return true
+  const tempVars = [...cmd.matchAll(/\b(\w+)=["']?\$\(mktemp\b/g)].map(v => v[1])
+  const isTemp = (raw: string) => {
+    const p = unquote(raw)
+    const v = /^\$\{?(\w+)\}?/.exec(p)
+    return TEMP_DIR.test(p) || (v !== null && tempVars.includes(v[1]))
+  }
+  const target =
+    /\s-C\s+("[^"]*"|'[^']*'|\S+)/.exec(m[0])?.[1] ??
+    [...before.matchAll(/(?:^|[\s;&|(])(?:cd|pushd|Set-Location|Push-Location|sl)\s+(?:-(?:Literal)?Path\s+)?("[^"]*"|'[^']*'|[^\s;&|)]+)/gi)].pop()?.[1]
+  return target !== undefined && isTemp(target)
 }
 
 export function commitGuardNote(): string {

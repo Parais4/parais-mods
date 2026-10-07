@@ -19,6 +19,9 @@ import {
   deployNote,
   EMPTY_STATS,
   FAIL_STREAK,
+  frustrationNote,
+  INTERRUPTS_TO_NOTE,
+  recentInterrupts,
   formatDuration,
   guardReason,
   IDLE_AFTER_MS,
@@ -89,6 +92,7 @@ import {
   findFeature,
   isBigModel,
   isCommitCommand,
+  isThrowawayCommit,
   isSimpleTask,
   LESSON_AFTER,
   lessonBubble,
@@ -272,6 +276,12 @@ const S = {
   portClash: null as PortClash | null,
   nextScanAt: 0,
   isScanning: false,
+  // Marveen-atvetel 40: quota snapshot, hook-state watch, interrupts.
+  quotaKey: '',
+  quotaAt: 0,
+  seenInjection: -1,
+  seenHookErrBytes: -1,
+  interrupts: [] as number[],
 }
 
 const voice = (): Voice => voiceOf(S.skin)
@@ -601,8 +611,13 @@ async function refreshReflect($: EngineInterface): Promise<number> {
   return S.reflectCount
 }
 
+
 async function scanAll($: EngineInterface): Promise<void> {
-  await Promise.all([scanCommits($).catch(() => undefined), scanPorts($).catch(() => undefined), refreshReflect($)])
+  await Promise.all([
+    scanCommits($).catch(() => undefined),
+    scanPorts($).catch(() => undefined),
+    refreshReflect($),
+  ])
 }
 
 /** The status line under the prompt: the figure's name and every limit at a glance. */
@@ -989,6 +1004,16 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
+  // A tool call the user interrupted: two within ten minutes reads as frustration (Marveen-atvetel 40).
+  on('classic.PostToolUseFailure', async ($, e, next) => {
+    if (isOn('fatigueLook') && (e as { is_interrupt?: boolean }).is_interrupt === true) {
+      const now = await $.clock.now()
+      S.interrupts = [...recentInterrupts(S.interrupts, now), now]
+      if (S.interrupts.length === INTERRUPTS_TO_NOTE) alert($, now, frustrationNote(S.interrupts.length), { pose: 'droop', ms: MIN, toast: false })
+    }
+    return next(e)
+  })
+
   // An API error ended the turn: the rate limit, an overload, the output cap...
   on('classic.StopFailure', async ($, e, next) => {
     const now = await $.clock.now()
@@ -1045,8 +1070,10 @@ export const register: Register = (on, options) => {
     await bumpStats($, s => ({ ...s, tools: s.tools + 1 }))
     await bumpActivity($, now)
 
-    const bashCmd = e.tool === 'Bash' ? String((e as unknown as { command?: unknown }).command ?? '').trim() : ''
-    if (isOn('commitGuard') && bashCmd !== '' && isCommitCommand(bashCmd) && S.lastEditAt > S.lastTestAt) {
+    // Shell commands come through the Bash tool or, where Claude Code runs PowerShell, the PowerShell tool.
+    const isShell = e.tool === 'Bash' || e.tool === 'PowerShell'
+    const bashCmd = isShell ? String((e as unknown as { command?: unknown }).command ?? '').trim() : ''
+    if (isOn('commitGuard') && bashCmd !== '' && isCommitCommand(bashCmd) && !isThrowawayCommit(bashCmd) && S.lastEditAt > S.lastTestAt) {
       const isRepeat = S.commitWarnCmd === bashCmd && now - S.commitWarnAt < 2 * MIN
       if (!isRepeat) {
         S.commitWarnCmd = bashCmd
@@ -1087,7 +1114,7 @@ export const register: Register = (on, options) => {
         return { ...ran, context: [...(ran.context ?? []), loopNote(parts.path, edits)] }
       }
     }
-    if (e.tool !== 'Bash' || ran.deny !== undefined) return ran
+    if (!isShell || ran.deny !== undefined) return ran
 
     const cmd = String((e as unknown as { command?: unknown }).command ?? '').trim()
     const after = await $.clock.now()
