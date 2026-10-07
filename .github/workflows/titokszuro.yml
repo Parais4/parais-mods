@@ -1,6 +1,7 @@
 # Titokszuro (Marveen-atvetel 5): gitleaks a teljes git-elozmenyen, pozitiv kontrollal.
 # "Nem szkennelheto" = hiba: ha a kontroll nem talalja az elultetett alkulcsot, vagy 0 commit lett szkennelve, a futas bukik.
 # Forras: Claudekod/_self-improve/git-orok/titokszuro.yml (a vaultban; itt ne szerkeszd kulon).
+# A run-blokkok bash -e alatt futnak: ahol a kilepesi kodot magunk vizsgaljuk (kod=$?), ott set +e kell. Teszt: teszt/titokszuro.test.mjs.
 name: titokszuro
 on:
   push:
@@ -31,7 +32,7 @@ jobs:
           ./gitleaks version
       - name: Pozitiv kontroll (az elultetett alkulcsot MEG KELL talalnia)
         run: |
-          set -uo pipefail
+          set +e; set -uo pipefail
           d="$(mktemp -d)"
           echo "token=ghp_$(head -c 300 /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 36)" > "$d/ultetett.txt"
           ./gitleaks dir "$d" --no-banner --redact --exit-code 7 > /dev/null 2>&1
@@ -41,7 +42,7 @@ jobs:
           echo "kontroll rendben (exit 7)"
       - name: Teljes elozmeny szkennelese
         run: |
-          set -uo pipefail
+          set +e; set -uo pipefail
           ./gitleaks git . --no-banner --redact --log-opts="--all" --exit-code 1 > gitleaks.log 2>&1
           kod=$?
           sed 's/\x1b\[[0-9;]*m//g' gitleaks.log
