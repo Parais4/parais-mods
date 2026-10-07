@@ -114,6 +114,7 @@ const limits = atom({ plugin: 'zsemle', key: 'limits' } as const, [] as Limit[])
 const limitsReadAt = atom({ plugin: 'zsemle', key: 'limitsReadAt' } as const, 0)
 const announcedResets = atom({ plugin: 'zsemle', key: 'announcedResets' } as const, [] as string[])
 const isHidden = atom({ plugin: 'zsemle', key: 'isHidden' } as const, false)
+const isFolded = atom({ plugin: 'zsemle', key: 'isFolded' } as const, false)
 const isWoken = atom({ plugin: 'zsemle', key: 'isWoken' } as const, false)
 const isGuardOff = atom({ plugin: 'zsemle', key: 'isGuardOff' } as const, false)
 
@@ -877,6 +878,12 @@ const AGENT_STALE_MS = 3 * 60 * MIN
 
 type Mini = { id: string; frame: Frame; left: number; lift: number }
 
+// How far a mini runs and hops. Its slot always takes both in full (the margin it does not use is put on the other
+// side), so the row never changes width: a moving row slid the bubble's buttons from under the pointer on the desktop.
+const MINI_RUN = 3
+const MINI_HOP = 1
+const miniMargins = (m: Mini) => ({ marginLeft: m.left, marginRight: MINI_RUN - m.left, marginBottom: m.lift, marginTop: MINI_HOP - m.lift })
+
 /** The mini figures to draw now: each runs, hops or sits, by its order, in its own rhythm. */
 function minis(now: number): { shown: Mini[]; more: number } {
   for (const [id, started] of S.agents) if (now - started > AGENT_STALE_MS) S.agents.delete(id)
@@ -1306,6 +1313,7 @@ export const register: Register = (on, options) => {
         return { text: tr(`${voice().name} elbújt. Visszahívás: /zsemle mutat`, `${voice().name} is hiding. Call back: /zsemle show`) }
       case 'show':
         await update($, isHidden, () => false)
+        await update($, isFolded, () => false)
         return { text: tr(`${voice().name} újra itt van.`, `${voice().name} is back.`) }
       case 'bar off':
         S.isStatusOff = true
@@ -1451,27 +1459,41 @@ export const register: Register = (on, options) => {
     const status = statusText(verdict)
     const color =
       v.tone === 'red' ? 'red' : v.tone === 'yellow' ? 'yellow' : v.tone === 'coat' ? COAT : v.tone === 'heart' ? HEART : undefined
-    const bubbleWidth = Math.max(24, Math.min(38, e.props.bodyColumns - SPRITE_COLUMNS - 3))
+    // The buttons' row needs 22 columns inside the border: 26 keeps two to spare (a wide heart glyph, the English labels).
+    const bubbleWidth = Math.max(26, Math.min(38, e.props.bodyColumns - SPRITE_COLUMNS - 3))
     const faded = isIdle(now) && skinOf(S.skin).fadesWhenIdle === true
 
     const { Box, Text, Button } = $.ui.resolve(e)
 
     const isOpen = showsBubble(v)
+    // Folded: one button in the band, a dot on it while a message waits; a press opens the figure again.
+    if (await read($, isFolded)) {
+      return (
+        <Box flexDirection="row" justifyContent="flex-end">
+          <Button key="unfold" label={`${isOpen ? '• ' : ''}${voice().name} ▸`} plain dimColor={!isOpen} onPress={() => update($, isFolded, () => false)} />
+        </Box>
+      )
+    }
+    const fold = () => update($, isFolded, () => true)
+    const foldLabel = tr('lecsuk', 'fold')
+
+    // The status line and the buttons each have a row: sharing one, the status squeezed the buttons out of the bubble.
     const bubble = isOpen ? (
       <Box key="bubble" flexDirection="column" borderStyle="round" borderColor={COAT} width={bubbleWidth}>
         <Text color={color} dimColor={v.tone === 'dim'} bold={v.tone !== 'plain' && v.tone !== 'dim'} wrap="wrap">
           {v.message}
         </Text>
-        <Box flexDirection="row" justifyContent="space-between">
+        {status !== '' && (
           <Text dimColor wrap="truncate-end">
             {status}
           </Text>
-          <Box flexDirection="row" gap={1}>
-            <Button key="ok" label="ok" plain onPress={() => ack($)} />
-            <Button key="pet" label="♥" plain onPress={() => pet($)} />
-            <Button key="mute" label={S.isMuted ? tr('hang', 'sound') : tr('némít', 'mute')} plain dimColor onPress={() => setMuted($, !S.isMuted)} />
-            <Button key="skin" label="skin" plain dimColor onPress={() => chooseSkin($, nextSkin(S.skin))} />
-          </Box>
+        )}
+        <Box key="buttons" flexDirection="row" flexWrap="wrap" flexShrink={0} gap={1}>
+          <Button key="ok" label="ok" plain onPress={() => ack($)} />
+          <Button key="pet" label="♥" plain onPress={() => pet($)} />
+          <Button key="mute" label={S.isMuted ? tr('hang', 'sound') : tr('némít', 'mute')} plain dimColor onPress={() => setMuted($, !S.isMuted)} />
+          <Button key="skin" label="skin" plain dimColor onPress={() => chooseSkin($, nextSkin(S.skin))} />
+          <Button key="fold" label={foldLabel} plain dimColor onPress={fold} />
         </Box>
       </Box>
     ) : null
@@ -1485,7 +1507,7 @@ export const register: Register = (on, options) => {
     if (e.surface === 'terminal') {
       const crowd = minis(now)
       const helpers = crowd.shown.map(m => (
-        <Box key={`mini-${m.id}`} flexDirection="column" marginLeft={m.left} marginBottom={m.lift} width={MINI_COLUMNS + 3}>
+        <Box key={`mini-${m.id}`} flexDirection="column" {...miniMargins(m)} width={MINI_COLUMNS}>
           {miniRuns(m.frame, S.skin).map((runs, y) => (
             <Box key={`mini-${m.id}-${y}`} flexDirection="row">
               {runs.map((run, i) => (
@@ -1523,6 +1545,7 @@ export const register: Register = (on, options) => {
               </Box>
             ))}
             {!isOpen && <Button key="pet-quiet" label="♥" plain dimColor onPress={() => pet($)} />}
+            {!isOpen && <Button key="fold" label={foldLabel} plain dimColor onPress={fold} />}
           </Box>
         </Box>
       )
@@ -1535,7 +1558,7 @@ export const register: Register = (on, options) => {
 
       const crowd = minis(now)
       const helpers = crowd.shown.map(m => (
-        <Box key={`mini-${m.id}`} flexDirection="column" marginLeft={m.left} marginBottom={m.lift}>
+        <Box key={`mini-${m.id}`} flexDirection="column" {...miniMargins(m)}>
           <Svg key={`mini-s-${m.id}`} source={miniSvg(m.frame, S.skin)} alt={tr('futó ügynök', 'running agent')} width={DESKTOP_MINI_PX} height={DESKTOP_MINI_PX} />
         </Box>
       ))
@@ -1549,6 +1572,12 @@ export const register: Register = (on, options) => {
             {crowd.more > 0 && <Text dimColor>+{crowd.more}</Text>}
           </Box>
           <Svg key="zsemle-dog" source={spriteSvg(v.pose, S.skin, faded)} alt={voice().alt} width={DESKTOP_FIGURE_PX} height={DESKTOP_FIGURE_PX} />
+          {!isOpen && (
+            <Box key="quiet" flexDirection="column">
+              <Button key="pet-quiet" label="♥" plain dimColor onPress={() => pet($)} />
+              <Button key="fold" label={foldLabel} plain dimColor onPress={fold} />
+            </Box>
+          )}
         </Box>
       )
     }

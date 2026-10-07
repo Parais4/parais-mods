@@ -8,6 +8,8 @@ declare module 'claude-code' {
       limitsReadAt: number
       announcedResets: string[]
       isHidden: boolean
+      /** Folded down to one button (the bubble's or the figure's "lecsuk"); a press opens it again. */
+      isFolded: boolean
       isWoken: boolean
       isGuardOff: boolean
     }

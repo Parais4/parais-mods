@@ -129,7 +129,8 @@ Run it from a local folder instead (for hacking on it): clone this repo and star
 | `/zsemle ok` | | "got it": hides the bubble until there is news (or the bubble's `ok` button) |
 | `/zsemle mute` / `sound` | `nemit` / `hang` | sound off/on |
 | `/zsemle pet` | `simi` | a pat (or the ♥ button next to the figure or in the bubble) |
-| `/zsemle hide` / `show` | `elrejt` / `mutat` | hide or show the figure |
+| `/zsemle hide` / `show` | `elrejt` / `mutat` | hide or show the figure (`show` also opens a folded one) |
+| (button) | | `fold` in the bubble or next to the quiet figure folds Zsemle down to one small button in the band; pressing that button opens it again |
 | `/zsemle bar off/on` | `sor ki/be` | the limit line under the prompt |
 | `/zsemle guard off/on` | `or ki/be` | the content guard for this session |
 | `/zsemle wake` | `ebreszt` | let work go on past 95% in this session |
